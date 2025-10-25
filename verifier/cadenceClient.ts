@@ -86,7 +86,6 @@ export class CadenceClient {
                 fcl.proposer(fcl.authz),
                 fcl.payer(fcl.authz),
                 fcl.authorizations([fcl.authz])
-                fcl.authorizations([fcl.authz])
             ]);
             
             console.log(`📝 [CADENCE_CLIENT] Transaction sent`, { transaction });
