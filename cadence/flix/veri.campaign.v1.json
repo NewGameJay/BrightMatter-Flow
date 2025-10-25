@@ -1,0 +1,120 @@
+{
+  "name": "veri.campaign.v1",
+  "version": "1.0.0",
+  "description": "Veri Campaign Creation Template for Flow Forte",
+  "author": "BrightMatter",
+  "license": "MIT",
+  "template": {
+    "name": "Create Campaign",
+    "description": "Creates a new creator campaign with FLOW escrow and Forte scheduling",
+    "inputs": [
+      {
+        "name": "campaignId",
+        "type": "String",
+        "description": "Unique campaign identifier",
+        "required": true
+      },
+      {
+        "name": "creator",
+        "type": "Address",
+        "description": "Creator's Flow wallet address",
+        "required": true
+      },
+      {
+        "name": "threshold",
+        "type": "UFix64",
+        "description": "Minimum performance score threshold",
+        "required": true
+      },
+      {
+        "name": "payout",
+        "type": "UFix64",
+        "description": "Total payout amount in FLOW",
+        "required": true
+      },
+      {
+        "name": "deadline",
+        "type": "UFix64",
+        "description": "Campaign deadline timestamp",
+        "required": true
+      },
+      {
+        "name": "deliverables",
+        "type": "[String]",
+        "description": "List of deliverable URLs",
+        "required": false
+      }
+    ],
+    "outputs": [
+      {
+        "name": "campaignId",
+        "type": "String",
+        "description": "Created campaign ID"
+      },
+      {
+        "name": "scheduledTxId",
+        "type": "String",
+        "description": "Forte scheduled transaction ID"
+      }
+    ],
+    "workflow": [
+      {
+        "step": 1,
+        "action": "createCampaign",
+        "description": "Create campaign with FLOW deposit",
+        "inputs": ["campaignId", "creator", "threshold", "payout", "deadline"]
+      },
+      {
+        "step": 2,
+        "action": "schedulePayout",
+        "description": "Schedule Forte payout transaction",
+        "inputs": ["campaignId", "deadline"]
+      },
+      {
+        "step": 3,
+        "action": "scheduleRefund",
+        "description": "Schedule Forte refund transaction",
+        "inputs": ["campaignId", "deadline"]
+      }
+    ],
+    "events": [
+      {
+        "name": "CampaignCreated",
+        "description": "Emitted when campaign is created"
+      },
+      {
+        "name": "PayoutScheduled",
+        "description": "Emitted when payout is scheduled"
+      },
+      {
+        "name": "RefundScheduled",
+        "description": "Emitted when refund is scheduled"
+      }
+    ]
+  },
+  "forte": {
+    "actions": [
+      {
+        "name": "createCampaign",
+        "script": "cadence/transactions/create_campaign.cdc"
+      },
+      {
+        "name": "schedulePayout",
+        "script": "cadence/transactions/schedule_payout.cdc"
+      },
+      {
+        "name": "scheduleRefund",
+        "script": "cadence/transactions/schedule_refund.cdc"
+      }
+    ],
+    "agents": [
+      {
+        "name": "campaignMonitor",
+        "description": "Monitors campaign performance every hour",
+        "script": "cadence/agents/campaign_monitor.cdc",
+        "schedule": "0 * * * *"
+      }
+    ]
+  }
+}
+

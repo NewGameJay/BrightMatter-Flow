@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+verifier/node_modules/
+
+# Environment variables
+.env
+.env.local
+verifier/.env
+
+# Private keys
+*.pkey
+*.key
+*.pem
+
+# Build outputs
+dist/
+build/
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Flow specific
+flow.json
+flow_cache/
+.cache/
