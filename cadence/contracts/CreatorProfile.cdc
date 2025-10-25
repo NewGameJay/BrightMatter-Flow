@@ -32,9 +32,14 @@ access(all) contract CreatorProfile {
         access(all) fun getProofs(): [Proof]
         access(all) fun getProofsForCampaign(campaignId: String): [Proof]
     }
+    
+    // Oracle-only interface for adding proofs
+    access(all) resource interface ProfileOracleReceiver {
+        access(all) fun addProof(proof: @Proof, oracleAddress: Address)
+    }
 
     // Main Profile resource - non-transferable SBT
-    access(all) resource Profile: IProfilePublic {
+    access(all) resource Profile: IProfilePublic, ProfileOracleReceiver {
         access(all) var campaignScores: {String: UFix64}
         access(all) var lastUpdated: UFix64
         access(all) var proofs: [Proof]
@@ -51,9 +56,12 @@ access(all) contract CreatorProfile {
             self.lastUpdated = timestamp
         }
         
-        // Admin-only function to add proof
-        access(all) fun addProof(proof: Proof) {
-            self.proofs.append(proof)
+        // Oracle-only function to add proof via interface
+        access(all) fun addProof(proof: @Proof, oracleAddress: Address) {
+            pre {
+                oracleAddress == CreatorProfile.oracle: "Only oracle can add proofs"
+            }
+            self.proofs.append(<-proof)
             self.lastUpdated = getCurrentBlock().timestamp
         }
         

@@ -46,26 +46,56 @@ export async function runTx({ cadence, args, limit = 9999 }: MutateOpts) {
 export async function updateCreatorScore(
   campaignId: string,
   creatorAddress: string,
-  score: number
+  score: number,
+  postId: string,
+  timestamp: number
 ) {
   const cadence = `
-    import CampaignEscrow from 0xCampaignEscrow
-    
+    import CampaignEscrow from 0x14aca78d100d2001
+    import CreatorProfile from 0x14aca78d100d2001
+
     transaction(
         campaignId: String,
         creator: Address,
+        postId: String,
         score: UFix64,
-        signer: Address
+        timestamp: UFix64,
+        oracleSignerAddr: Address
     ) {
-        prepare(acct: &Account) {
-            // Call the contract function directly
-            CampaignEscrow.updateCreatorScore(
+        let profileRef: &CreatorProfile.Profile{CreatorProfile.ProfileOracleReceiver}?
+
+        prepare(signer: auth(Storage, SaveValue, BorrowValue) &Account) {
+            // 1) Update score in CampaignEscrow
+            let ok = CampaignEscrow.updateCreatorScore(
                 campaignId: campaignId,
                 creator: creator,
                 score: score,
-                signer: signer
+                signer: oracleSignerAddr
             )
+            assert(ok, message: "updateCreatorScore failed")
+
+            // 2) Create the proof resource
+            let proof <- CreatorProfile.createProof(
+                postId: postId,
+                score: score,
+                timestamp: timestamp,
+                campaignId: campaignId
+            )
+
+            // 3) Borrow creator's Profile via public capability
+            let cap = getAccount(creator)
+                .getCapability<&CreatorProfile.Profile{CreatorProfile.ProfileOracleReceiver}>(
+                    /public/CreatorProfileReceiver
+                )
+
+            self.profileRef = cap.borrow()
+            assert(self.profileRef != nil, message: "Profile capability unavailable")
+
+            // 4) Add proof to the profile (oracle-authorized)
+            self.profileRef!.addProof(<-proof, oracleAddress: oracleSignerAddr)
         }
+
+        execute {}
     }
   `;
   
@@ -74,7 +104,9 @@ export async function updateCreatorScore(
     args: (arg, types) => [
       arg(campaignId, types.String),
       arg(creatorAddress, types.Address),
-      arg(score.toString(), types.UFix64),
+      arg(postId, types.String),
+      arg(score.toFixed(2), types.UFix64),
+      arg(timestamp.toFixed(2), types.UFix64),
       arg(process.env.FLOW_ADDRESS || "14aca78d100d2001", types.Address),
     ],
   });
@@ -85,10 +117,10 @@ export async function updateCreatorScore(
  */
 export async function triggerPayout(campaignId: string) {
   const cadence = `
-    import CampaignEscrow from 0xCampaignEscrow
+    import CampaignEscrow from 0x14aca78d100d2001
     
     transaction(campaignId: String, signer: Address) {
-        prepare(acct: AuthAccount) {
+        prepare(signer: auth(Storage, SaveValue, BorrowValue) &Account) {
             let success = CampaignEscrow.triggerPayout(
                 campaignId: campaignId,
                 signer: signer
@@ -115,10 +147,10 @@ export async function triggerPayout(campaignId: string) {
  */
 export async function triggerRefund(campaignId: string) {
   const cadence = `
-    import CampaignEscrow from 0xCampaignEscrow
+    import CampaignEscrow from 0x14aca78d100d2001
     
     transaction(campaignId: String, signer: Address) {
-        prepare(acct: AuthAccount) {
+        prepare(signer: auth(Storage, SaveValue, BorrowValue) &Account) {
             let success = CampaignEscrow.triggerRefund(
                 campaignId: campaignId,
                 signer: signer

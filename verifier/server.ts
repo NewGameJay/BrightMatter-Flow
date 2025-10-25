@@ -11,7 +11,7 @@ import * as cadenceClient from './src/cadenceClient';
 dotenv.config();
 
 const app = express();
-const port = process.env.PORT || 3000;
+const port = Number(process.env.PORT || 8080);
 
 // Middleware
 app.use(cors());
@@ -46,11 +46,16 @@ app.post('/api/analyze', async (req: Request, res: Response) => {
       metrics: scoreResult.metrics
     });
     
-    // Update creator score on-chain
+    // Update creator score on-chain with proof
+    const postId = postUrl.split('/').pop() || `post_${Date.now()}`;
+    const timestamp = Date.now() / 1000; // Unix timestamp in seconds
+    
     const txResult = await cadenceClient.updateCreatorScore(
       campaignId,
       creatorAddress,
-      scoreResult.score
+      scoreResult.score,
+      postId,
+      timestamp
     );
     
     console.log(`✅ [POST_ANALYSIS] On-chain update successful`, { txResult });
