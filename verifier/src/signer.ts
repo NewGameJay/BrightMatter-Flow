@@ -32,7 +32,9 @@ function hashMsgHex(hex: string): Buffer {
  * This replaces browser user services with direct private key signing
  */
 export const serverAuthorization = async (account: any = {}) => {
-  const addr = fcl.withPrefix(FLOW_ADDRESS);
+  // Ensure FLOW_ADDRESS is a string
+  const addressStr = String(FLOW_ADDRESS);
+  const addr = fcl.withPrefix(addressStr);
 
   return {
     ...account,

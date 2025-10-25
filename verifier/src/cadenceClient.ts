@@ -29,9 +29,9 @@ export async function runTx({ cadence, args, limit = 9999 }: MutateOpts) {
   const txId = await fcl.mutate({
     cadence,
     args: args ?? ((arg, types) => []),
-    proposer: fcl.account(serverAuthorization as any),
-    payer: fcl.account(serverAuthorization as any),
-    authorizations: [fcl.account(serverAuthorization as any)],
+    proposer: serverAuthorization,
+    payer: serverAuthorization,
+    authorizations: [serverAuthorization],
     limit,
   });
 
