@@ -4,10 +4,8 @@
  * Handles all Flow blockchain interactions
  * Signs transactions with oracle private key
  */
-
 import * as fcl from "@onflow/fcl";
 import * as sdk from "@onflow/sdk";
-
 export class CadenceClient {
     private oracleAddress: string;
     private oraclePrivateKey: string;
@@ -86,7 +84,6 @@ export class CadenceClient {
                     fcl.arg(this.oracleAddress, fcl.t.Address)
                 ]),
                 fcl.proposer(fcl.currentUser),
-                fcl.authorizations([fcl.currentUser]),
                 fcl.payer(fcl.currentUser)
             ]);
             
@@ -132,7 +129,6 @@ export class CadenceClient {
                     fcl.arg(this.oracleAddress, fcl.t.Address)
                 ]),
                 fcl.proposer(fcl.currentUser),
-                fcl.authorizations([fcl.currentUser]),
                 fcl.payer(fcl.currentUser)
             ]);
             
@@ -174,7 +170,6 @@ export class CadenceClient {
                     fcl.arg(this.oracleAddress, fcl.t.Address)
                 ]),
                 fcl.proposer(fcl.currentUser),
-                fcl.authorizations([fcl.currentUser]),
                 fcl.payer(fcl.currentUser)
             ]);
             
