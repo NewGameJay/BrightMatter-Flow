@@ -8,7 +8,7 @@
  * - Forte scheduled transaction management
  */
 
-import express from 'express';
+import express, { Request, Response } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { BrightMatterScorer, ScoreResult } from './computeScore';
@@ -38,7 +38,7 @@ const creatorPosts = new Map<string, any[]>();
  * POST /api/analyze
  * Analyze a social media post and compute score
  */
-app.post('/api/analyze', async (req, res) => {
+app.post('/api/analyze', async (req: Request, res: Response) => {
     try {
         const { postUrl, campaignId, creatorAddress } = req.body;
         
@@ -110,7 +110,7 @@ app.post('/api/analyze', async (req, res) => {
  * POST /api/campaigns
  * Create a new campaign
  */
-app.post('/api/campaigns', async (req, res) => {
+app.post('/api/campaigns', async (req: Request, res: Response) => {
     try {
         const { id, creator, threshold, payout, deadline } = req.body;
         
@@ -191,7 +191,7 @@ app.post('/api/campaigns', async (req, res) => {
  * GET /api/campaigns/:id
  * Get campaign details
  */
-app.get('/api/campaigns/:id', async (req, res) => {
+app.get('/api/campaigns/:id', async (req: Request, res: Response) => {
     try {
         const campaignId = req.params.id;
         const campaign = campaigns.get(campaignId);
@@ -220,7 +220,7 @@ app.get('/api/campaigns/:id', async (req, res) => {
  * POST /api/campaigns/:id/trigger-payout
  * Trigger campaign payout
  */
-app.post('/api/campaigns/:id/trigger-payout', async (req, res) => {
+app.post('/api/campaigns/:id/trigger-payout', async (req: Request, res: Response) => {
     try {
         const campaignId = req.params.id;
         
@@ -250,7 +250,7 @@ app.post('/api/campaigns/:id/trigger-payout', async (req, res) => {
  * POST /api/campaigns/:id/trigger-refund
  * Trigger campaign refund
  */
-app.post('/api/campaigns/:id/trigger-refund', async (req, res) => {
+app.post('/api/campaigns/:id/trigger-refund', async (req: Request, res: Response) => {
     try {
         const campaignId = req.params.id;
         
@@ -280,7 +280,7 @@ app.post('/api/campaigns/:id/trigger-refund', async (req, res) => {
  * GET /api/campaigns/:id/posts
  * Get all posts for a campaign
  */
-app.get('/api/campaigns/:id/posts', (req, res) => {
+app.get('/api/campaigns/:id/posts', (req: Request, res: Response) => {
     try {
         const campaignId = req.params.id;
         const posts = creatorPosts.get(campaignId) || [];
@@ -300,7 +300,7 @@ app.get('/api/campaigns/:id/posts', (req, res) => {
  * GET /api/health
  * Health check endpoint
  */
-app.get('/api/health', (req, res) => {
+app.get('/api/health', (req: Request, res: Response) => {
     res.json({
         status: 'healthy',
         timestamp: Date.now(),
