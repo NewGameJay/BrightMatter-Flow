@@ -50,7 +50,6 @@ export async function updateCreatorScore(
 ) {
   const cadence = `
     import CampaignEscrow from 0xCampaignEscrow
-    import CreatorProfile from 0xCreatorProfile
     
     transaction(
         campaignId: String,
@@ -58,17 +57,14 @@ export async function updateCreatorScore(
         score: UFix64,
         signer: Address
     ) {
-        prepare(acct: AuthAccount) {
-            let success = CampaignEscrow.updateCreatorScore(
+        prepare(acct: &Account) {
+            // Call the contract function directly
+            CampaignEscrow.updateCreatorScore(
                 campaignId: campaignId,
                 creator: creator,
                 score: score,
                 signer: signer
             )
-            
-            if !success {
-                panic("Failed to update creator score")
-            }
         }
     }
   `;
