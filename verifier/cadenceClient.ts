@@ -83,8 +83,10 @@ export class CadenceClient {
                     fcl.arg(score.toString(), fcl.t.UFix64),
                     fcl.arg(this.oracleAddress, fcl.t.Address)
                 ]),
-                fcl.proposer(fcl.currentUser),
-                fcl.payer(fcl.currentUser)
+                fcl.proposer(fcl.authz),
+                fcl.payer(fcl.authz),
+                fcl.authorizations([fcl.authz])
+                fcl.authorizations([fcl.authz])
             ]);
             
             console.log(`📝 [CADENCE_CLIENT] Transaction sent`, { transaction });
@@ -128,8 +130,9 @@ export class CadenceClient {
                     fcl.arg(campaignId, fcl.t.String),
                     fcl.arg(this.oracleAddress, fcl.t.Address)
                 ]),
-                fcl.proposer(fcl.currentUser),
-                fcl.payer(fcl.currentUser)
+                fcl.proposer(fcl.authz),
+                fcl.payer(fcl.authz)
+                fcl.authorizations([fcl.authz])
             ]);
             
             const result = await fcl.decode(transaction);
@@ -169,8 +172,9 @@ export class CadenceClient {
                     fcl.arg(campaignId, fcl.t.String),
                     fcl.arg(this.oracleAddress, fcl.t.Address)
                 ]),
-                fcl.proposer(fcl.currentUser),
-                fcl.payer(fcl.currentUser)
+                fcl.proposer(fcl.authz),
+                fcl.payer(fcl.authz)
+                fcl.authorizations([fcl.authz])
             ]);
             
             const result = await fcl.decode(transaction);
