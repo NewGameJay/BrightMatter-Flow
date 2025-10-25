@@ -8,8 +8,8 @@ WORKDIR /app
 # Copy package files
 COPY verifier/package*.json ./
 
-# Install dependencies
-RUN npm ci --only=production
+# Install all dependencies (including dev for building)
+RUN npm ci
 
 # Copy source code
 COPY verifier/ ./

@@ -10,13 +10,12 @@
     "test": "jest"
   },
   "dependencies": {
-    "@onflow/fcl": "^1.12.0",
-    "@onflow/sdk": "^1.12.0",
+    "@onflow/fcl": "^1.11.0",
+    "@onflow/sdk": "^1.11.0",
     "express": "^4.18.2",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
-    "axios": "^1.6.0",
-    "crypto": "^1.0.1"
+    "axios": "^1.6.0"
   },
   "devDependencies": {
     "@types/express": "^4.17.21",
