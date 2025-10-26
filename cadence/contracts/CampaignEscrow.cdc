@@ -21,7 +21,7 @@ access(all) contract CampaignEscrow {
         access(all) let deadline: UFix64
         access(all) let createdAt: UFix64
         access(all) let scheduledTxId: String? // Forte scheduled transaction ID for auto-refund
-        access(all) var totalScore: UFix64
+        access(self) var totalScore: UFix64
         access(all) var creatorScores: {Address: UFix64}
         
         init(
@@ -44,6 +44,16 @@ access(all) contract CampaignEscrow {
             self.scheduledTxId = scheduledTxId
             self.totalScore = 0.0
             self.creatorScores = {}
+        }
+        
+        // Setter function to add to total score
+        access(all) fun addToTotalScore(_ amount: UFix64) {
+            self.totalScore = self.totalScore + amount
+        }
+        
+        // Getter for totalScore
+        access(all) fun getTotalScore(): UFix64 {
+            return self.totalScore
         }
     }
     
@@ -112,8 +122,8 @@ access(all) contract CampaignEscrow {
         // Update creator score
         campaign.creatorScores[creator] = score
         
-        // Update total campaign score
-        campaign.totalScore = campaign.totalScore + score
+        // Update total campaign score using setter
+        campaign.addToTotalScore(score)
         
         // Emit event
         emit CreatorScoreUpdated(campaignId: campaignId, creator: creator, score: score)
@@ -136,14 +146,14 @@ access(all) contract CampaignEscrow {
         // Check if deadline has passed
         if getCurrentBlock().timestamp > campaign.deadline {
             // Campaign expired - check if threshold was met
-            if campaign.totalScore >= campaign.threshold {
+            if campaign.getTotalScore() >= campaign.threshold {
                 return "payout"
             } else {
                 return "refund"
             }
         } else {
             // Campaign still active - check if threshold already met
-            if campaign.totalScore >= campaign.threshold {
+            if campaign.getTotalScore() >= campaign.threshold {
                 return "payout"
             } else {
                 return "pending"
@@ -164,9 +174,9 @@ access(all) contract CampaignEscrow {
         let campaign = self.campaigns[campaignId]!
         
         // Check if KPI is met
-        if campaign.totalScore >= campaign.threshold {
+        if campaign.getTotalScore() >= campaign.threshold {
             // Calculate creator shares and distribute payouts
-            let totalScore = campaign.totalScore
+            let totalScore = campaign.getTotalScore()
             let payoutAmount = campaign.payout
             
             // Distribute to each creator based on their score share
@@ -180,7 +190,7 @@ access(all) contract CampaignEscrow {
             }
             
             // Emit event
-            emit PayoutTriggered(campaignId: campaignId, totalScore: campaign.totalScore, payout: payoutAmount)
+            emit PayoutTriggered(campaignId: campaignId, totalScore: campaign.getTotalScore(), payout: payoutAmount)
             
             return true
         }
@@ -201,7 +211,7 @@ access(all) contract CampaignEscrow {
         let campaign = self.campaigns[campaignId]!
         
         // Check if deadline has passed and KPI not met
-        if getCurrentBlock().timestamp > campaign.deadline && campaign.totalScore < campaign.threshold {
+        if getCurrentBlock().timestamp > campaign.deadline && campaign.getTotalScore() < campaign.threshold {
             // Refund FLOW to brand
             // Note: In a real implementation, you'd need to handle the transfer
             // This is simplified for the demo
@@ -238,6 +248,6 @@ access(all) contract CampaignEscrow {
     init(oracle: Address) {
         self.oracle = oracle
         self.campaigns = {}
-        self.vault <- FlowToken.createEmptyVault()
+        self.vault <- FlowToken.createEmptyVault(vaultType: Type<@FlowToken.Vault>())
     }
 }
