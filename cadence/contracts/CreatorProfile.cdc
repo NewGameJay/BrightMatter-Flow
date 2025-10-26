@@ -25,11 +25,15 @@ access(all) contract CreatorProfile {
         access(all) var proofs: @[Proof]
 
         init() {
-            self.proofs <- []
+            self.proofs <- [] as @[Proof]
         }
 
         access(all) fun addProof(proof: @Proof) {
             self.proofs.append(<-proof)
+        }
+
+        destroy() {
+            destroy self.proofs
         }
     }
 
@@ -52,8 +56,8 @@ access(all) contract CreatorProfile {
     ) {
         pre { signer == self.oracle: "only oracle may add proof" }
 
-        let creatorAccount = getAccount(creator)
-        let cap: Capability<&{ProfilePublic}> = creatorAccount.capabilities.get(/public/CreatorProfile)!
+        let cap = getAccount(creator)
+            .getCapability<&{ProfilePublic}>(/public/CreatorProfile)
 
         let profileRef = cap.borrow()
             ?? panic("Creator profile not found or wrong cap type")

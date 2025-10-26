@@ -125,6 +125,9 @@ access(all) contract CampaignEscrow {
         // Update total campaign score using setter
         campaign.addToTotalScore(score)
         
+        // Write back the mutated struct to storage
+        self.campaigns[campaignId] = campaign
+        
         // Emit event
         emit CreatorScoreUpdated(campaignId: campaignId, creator: creator, score: score)
         
@@ -179,14 +182,17 @@ access(all) contract CampaignEscrow {
             let totalScore = campaign.getTotalScore()
             let payoutAmount = campaign.payout
             
-            // Distribute to each creator based on their score share
-            for creator in campaign.creatorScores.keys {
-                let creatorScore = campaign.creatorScores[creator]!
-                let creatorShare = (creatorScore / totalScore) * payoutAmount
+            // Guard against division by zero
+            if totalScore > 0.0 {
+                // Distribute to each creator based on their score share
+                for creator in campaign.creatorScores.keys {
+                    let creatorScore = campaign.creatorScores[creator]!
+                    let creatorShare = (creatorScore / totalScore) * payoutAmount
                 
-                // Transfer FLOW to creator
-                // Note: In a real implementation, you'd need to handle the transfer
-                // This is simplified for the demo
+                    // Transfer FLOW to creator
+                    // Note: In a real implementation, you'd need to handle the transfer
+                    // This is simplified for the demo
+                }
             }
             
             // Emit event
