@@ -21,7 +21,16 @@ app.use(express.json());
 
 // Health check
 app.get('/health', (_req: Request, res: Response) => {
-  res.json({ ok: true, service: 'brightmatter-oracle' });
+  res.json({ 
+    ok: true, 
+    service: 'brightmatter-oracle',
+    network: 'mainnet',
+    contracts: {
+      CampaignEscrowV2: '0x14aca78d100d2001',
+      CreatorProfileV2: '0x14aca78d100d2001'
+    },
+    oracle: process.env.FLOW_ADDRESS || '14aca78d100d2001'
+  });
 });
 
 // Analyze post and compute score
@@ -29,16 +38,23 @@ app.post('/api/analyze', async (req: Request, res: Response) => {
   try {
     const { postUrl, campaignId, creatorAddress } = req.body;
     
+    // Input validation
+    if (!postUrl || typeof postUrl !== 'string') {
+      return res.status(400).json({ error: 'postUrl is required and must be a string' });
+    }
+    if (!campaignId || typeof campaignId !== 'string') {
+      return res.status(400).json({ error: 'campaignId is required and must be a string' });
+    }
+    if (!creatorAddress || typeof creatorAddress !== 'string') {
+      return res.status(400).json({ error: 'creatorAddress is required and must be a string' });
+    }
+    
     console.log(`📝 [POST_ANALYSIS] Started analysis`, {
       postUrl,
       campaignId,
       creatorAddress,
       timestamp: new Date().toISOString()
     });
-    
-    if (!postUrl || !campaignId || !creatorAddress) {
-      return res.status(400).json({ error: 'Missing required fields' });
-    }
     
     // Analyze post and compute score
     const scoreResult = await BrightMatterScorer.analyzePost(postUrl);
@@ -60,18 +76,36 @@ app.post('/api/analyze', async (req: Request, res: Response) => {
       timestamp
     );
     
-    console.log(`✅ [POST_ANALYSIS] On-chain update successful`, { txResult });
+    console.log(`✅ [POST_ANALYSIS] On-chain update successful`, {
+      campaignId,
+      creatorAddress,
+      score: scoreResult.score,
+      txId: txResult.txId,
+      sealed: txResult.sealed,
+      timestamp: new Date().toISOString()
+    });
     
     res.json({
       success: true,
+      campaignId,
+      creatorAddress,
       score: scoreResult.score,
       metrics: scoreResult.metrics,
       txResult,
       flowscanLink: getFlowscanLink(txResult.txId)
     });
   } catch (error: any) {
-    console.error('❌ [POST_ANALYSIS] Error:', error);
-    res.status(500).json({ error: error.message || String(error) });
+    console.error('❌ [POST_ANALYSIS] Error:', {
+      campaignId: req.body?.campaignId,
+      creatorAddress: req.body?.creatorAddress,
+      error: error.message || String(error),
+      stack: error.stack,
+      timestamp: new Date().toISOString()
+    });
+    res.status(500).json({ 
+      error: error.message || String(error),
+      campaignId: req.body?.campaignId 
+    });
   }
 });
 
@@ -84,7 +118,12 @@ app.post('/api/campaigns/:id/payout', async (req: Request, res: Response) => {
     
     const result = await cadenceClient.triggerPayout(campaignId);
     
-    console.log(`✅ [PAYOUT] Payout successful`, { result });
+    console.log(`✅ [PAYOUT] Payout successful`, {
+      campaignId,
+      txId: result.txId,
+      sealed: result.sealed,
+      timestamp: new Date().toISOString()
+    });
     
     res.json({
       success: true,
@@ -107,7 +146,12 @@ app.post('/api/campaigns/:id/refund', async (req: Request, res: Response) => {
     
     const result = await cadenceClient.triggerRefund(campaignId);
     
-    console.log(`✅ [REFUND] Refund successful`, { result });
+    console.log(`✅ [REFUND] Refund successful`, {
+      campaignId,
+      txId: result.txId,
+      sealed: result.sealed,
+      timestamp: new Date().toISOString()
+    });
     
     res.json({
       success: true,
