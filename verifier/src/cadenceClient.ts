@@ -62,8 +62,6 @@ export async function updateCreatorScore(
         timestamp: UFix64,
         oracleSignerAddr: Address
     ) {
-        let profileRef: &CreatorProfile.Profile{CreatorProfile.ProfileOracleReceiver}?
-
         prepare(signer: auth(Storage, SaveValue, BorrowValue) &Account) {
             // 1) Update score in CampaignEscrow
             let ok = CampaignEscrow.updateCreatorScore(
@@ -82,20 +80,13 @@ export async function updateCreatorScore(
                 campaignId: campaignId
             )
 
-            // 3) Borrow creator's Profile via public capability
-            let cap = getAccount(creator)
-                .getCapability<&CreatorProfile.Profile{CreatorProfile.ProfileOracleReceiver}>(
-                    /public/CreatorProfileReceiver
-                )
-
-            self.profileRef = cap.borrow()
-            assert(self.profileRef != nil, message: "Profile capability unavailable")
-
-            // 4) Add proof to the profile (oracle-authorized)
-            self.profileRef!.addProof(<-proof, oracleAddress: oracleSignerAddr)
+            // 3) Add proof to the profile via contract-level wrapper (enforces oracle check)
+            CreatorProfile.addProofFor(
+                creator: creator,
+                proof: <-proof,
+                signer: oracleSignerAddr
+            )
         }
-
-        execute {}
     }
   `;
   

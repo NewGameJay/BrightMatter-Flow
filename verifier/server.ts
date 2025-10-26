@@ -8,6 +8,8 @@ import dotenv from 'dotenv';
 import { BrightMatterScorer } from './src/computeScore';
 import * as cadenceClient from './src/cadenceClient';
 
+// Force image rebuild - v2 with contract-level addProof wrapper
+
 dotenv.config();
 
 const app = express();
@@ -134,8 +136,9 @@ app.get('/api/campaigns/:id', async (req: Request, res: Response) => {
 });
 
 // Start server
-app.listen(port, () => {
-  console.log(`🚀 BrightMatter Oracle running on port ${port}`);
+const host = '0.0.0.0';
+app.listen(port, host, () => {
+  console.log(`🚀 BrightMatter Oracle running on ${host}:${port}`);
   console.log(`📊 Mainnet contracts: 0x14aca78d100d2001`);
   console.log(`🔐 Oracle address: ${process.env.FLOW_ADDRESS || '14aca78d100d2001'}`);
 });

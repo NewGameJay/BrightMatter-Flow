@@ -100,6 +100,23 @@ access(all) contract CreatorProfile {
     // Oracle account that can update profiles
     access(all) let oracle: Address
     
+    // Contract-level wrapper to add proofs (enforces oracle check)
+    access(all) fun addProofFor(creator: Address, proof: @Proof, signer: Address) {
+        pre {
+            signer == self.oracle: "Only oracle can add proofs"
+        }
+        
+        let creatorAcct = getAccount(creator)
+        let profileRef = creatorAcct
+            .getCapability<&Profile{ProfileOracleReceiver}>(
+                /public/CreatorProfileReceiver
+            )
+            .borrow()
+            ?? panic("Profile capability not found")
+            
+        profileRef.addProof(proof: <-proof, oracleAddress: signer)
+    }
+    
     // Function to create a new profile (called during setup)
     access(all) fun createProfile(): @Profile {
         return <- create Profile()
