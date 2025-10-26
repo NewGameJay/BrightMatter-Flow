@@ -1,27 +1,31 @@
-import CampaignEscrowV2 from 0x14aca78d100d2001
+import FungibleToken from 0xf233dcee88fe0abe
 import FlowToken from 0x1654653399040a61
+import CampaignEscrowV2 from 0x14aca78d100d2001
 
 transaction(
-    campaignId: String,
-    creator: Address,
-    threshold: UFix64,
-    payout: UFix64,
-    deadline: UFix64,
-    from: @FlowToken.Vault
+  id: String,
+  creator: Address,
+  threshold: UFix64,
+  payout: UFix64,
+  deadline: UFix64,
+  deposit: UFix64
 ) {
-    prepare(signer: auth(Storage, SaveValue, BorrowValue) &Account) {
-        // Create campaign with FLOW deposit
-        let success = CampaignEscrowV2.createCampaign(
-            id: campaignId,
-            creator: creator,
-            threshold: threshold,
-            payout: payout,
-            deadline: deadline,
-            from: <- from
-        )
-        
-        if !success {
-            panic("Failed to create campaign")
-        }
-    }
+  // withdraw from brand vault
+  let vaultRef: &FlowToken.Vault
+  prepare(acct: auth(Storage, BorrowValue) &Account) {
+    self.vaultRef = acct.borrow<&FlowToken.Vault>(from: /storage/flowTokenVault)
+      ?? panic("Brand: missing FlowToken vault")
+  }
+  execute {
+    let payment <- self.vaultRef.withdraw(amount: deposit)
+    let ok = CampaignEscrowV2.createCampaign(
+      id: id,
+      creator: creator,
+      threshold: threshold,
+      payout: payout,
+      deadline: deadline,
+      from: <- payment
+    )
+    assert(ok, message: "createCampaign failed")
+  }
 }

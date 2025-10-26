@@ -1,43 +1,34 @@
-import CreatorProfileV2 from 0x14aca78d100d2001
-import FlowToken from 0x1654653399040a61
 import FungibleToken from 0xf233dcee88fe0abe
+import FlowToken from 0x1654653399040a61
+import CreatorProfileV2 from 0x14aca78d100d2001
 
 transaction {
-    prepare(signer: auth(Storage, SaveValue, BorrowValue, Capabilities) &Account) {
-        // 1. Setup CreatorProfile if it doesn't exist
-        if signer.borrow<&CreatorProfileV2.Profile>(from: /storage/CreatorProfile) == nil {
-            // Create and save profile
-            signer.save(<- CreatorProfileV2.createEmptyProfile(), to: /storage/CreatorProfile)
-            
-            // Link public capability
-            signer.unlink(/public/CreatorProfile)
-            signer.link<&{CreatorProfileV2.ProfilePublic}>(
-                /public/CreatorProfile,
-                target: /storage/CreatorProfile
-            )
-        }
-        
-        // 2. Setup FlowToken receiver vault if it doesn't exist
-        if signer.borrow<&FlowToken.Vault>(from: /storage/flowTokenVault) == nil {
-            // Create empty vault
-            signer.save(
-                <- FlowToken.createEmptyVault(vaultType: Type<@FlowToken.Vault>()),
-                to: /storage/flowTokenVault
-            )
-            
-            // Link public receiver capability
-            signer.unlink(/public/flowTokenReceiver)
-            signer.link<&{FungibleToken.Receiver}>(
-                /public/flowTokenReceiver,
-                target: /storage/flowTokenVault
-            )
-            
-            // Link public balance capability
-            signer.unlink(/public/flowTokenBalance)
-            signer.link<&{FungibleToken.Balance}>(
-                /public/flowTokenBalance,
-                target: /storage/flowTokenVault
-            )
-        }
+  prepare(acct: auth(Storage, SaveValue, Capabilities, BorrowValue) &Account) {
+    // 1) Ensure FlowToken receiver vault
+    if acct.borrow<&FlowToken.Vault>(from: /storage/flowTokenVault) == nil {
+      acct.save(<- FlowToken.createEmptyVault(vaultType: Type<@FlowToken.Vault>()), to: /storage/flowTokenVault)
+      acct.link<&{FungibleToken.Receiver}>(
+        /public/flowTokenReceiver,
+        target: /storage/flowTokenVault
+      )
+    } else {
+      // Make sure the public receiver link exists
+      if !acct.getCapability<&{FungibleToken.Receiver}>(/public/flowTokenReceiver).check() {
+        acct.link<&{FungibleToken.Receiver}>(
+          /public/flowTokenReceiver,
+          target: /storage/flowTokenVault
+        )
+      }
     }
+
+    // 2) Ensure CreatorProfileV2 profile in storage + public cap
+    if acct.borrow<&CreatorProfileV2.Profile>(from: /storage/CreatorProfile) == nil {
+      acct.save(<- CreatorProfileV2.createEmptyProfile(), to: /storage/CreatorProfile)
+    }
+    acct.unlink(/public/CreatorProfile)
+    acct.link<&{CreatorProfileV2.ProfilePublic}>(
+      /public/CreatorProfile,
+      target: /storage/CreatorProfile
+    )
+  }
 }
