@@ -51,8 +51,8 @@ export async function updateCreatorScore(
   timestamp: number
 ) {
   const cadence = `
-    import CampaignEscrow from 0x14aca78d100d2001
-    import CreatorProfile from 0x14aca78d100d2001
+    import CampaignEscrowV2 from 0x14aca78d100d2001
+    import CreatorProfileV2 from 0x14aca78d100d2001
 
     transaction(
         campaignId: String,
@@ -60,45 +60,41 @@ export async function updateCreatorScore(
         postId: String,
         score: UFix64,
         timestamp: UFix64,
-        oracleSignerAddr: Address
+        signer: Address
     ) {
-        prepare(signer: auth(Storage, SaveValue, BorrowValue) &Account) {
-            // 1) Update score in CampaignEscrow
-            let ok = CampaignEscrow.updateCreatorScore(
+        execute {
+            let ok = CampaignEscrowV2.updateCreatorScore(
                 campaignId: campaignId,
                 creator: creator,
                 score: score,
-                signer: oracleSignerAddr
+                signer: signer
             )
             assert(ok, message: "updateCreatorScore failed")
 
-            // 2) Create the proof resource
-            let proof <- CreatorProfile.createProof(
+            CreatorProfileV2.addProofFor(
+                creator: creator,
                 postId: postId,
                 score: score,
                 timestamp: timestamp,
-                campaignId: campaignId
-            )
-
-            // 3) Add proof to the profile via contract-level wrapper (enforces oracle check)
-            CreatorProfile.addProofFor(
-                creator: creator,
-                proof: <-proof,
-                signer: oracleSignerAddr
+                campaignId: campaignId,
+                signer: signer
             )
         }
     }
   `;
   
+  const oracleAddress = fcl.withPrefix(process.env.FLOW_ADDRESS || "14aca78d100d2001");
+  const creatorAddr = fcl.withPrefix(creatorAddress);
+  
   return runTx({
     cadence,
     args: (arg, types) => [
       arg(campaignId, types.String),
-      arg(creatorAddress, types.Address),
+      arg(creatorAddr, types.Address),
       arg(postId, types.String),
       arg(score.toFixed(2), types.UFix64),
       arg(timestamp.toFixed(2), types.UFix64),
-      arg(process.env.FLOW_ADDRESS || "14aca78d100d2001", types.Address),
+      arg(oracleAddress, types.Address),
     ],
   });
 }
@@ -108,11 +104,11 @@ export async function updateCreatorScore(
  */
 export async function triggerPayout(campaignId: string) {
   const cadence = `
-    import CampaignEscrow from 0x14aca78d100d2001
+    import CampaignEscrowV2 from 0x14aca78d100d2001
     
     transaction(campaignId: String, signer: Address) {
-        prepare(signer: auth(Storage, SaveValue, BorrowValue) &Account) {
-            let success = CampaignEscrow.triggerPayout(
+        execute {
+            let success = CampaignEscrowV2.triggerPayout(
                 campaignId: campaignId,
                 signer: signer
             )
@@ -124,11 +120,13 @@ export async function triggerPayout(campaignId: string) {
     }
   `;
   
+  const oracleAddress = fcl.withPrefix(process.env.FLOW_ADDRESS || "14aca78d100d2001");
+  
   return runTx({
     cadence,
     args: (arg, types) => [
       arg(campaignId, types.String),
-      arg(process.env.FLOW_ADDRESS || "14aca78d100d2001", types.Address),
+      arg(oracleAddress, types.Address),
     ],
   });
 }
@@ -138,11 +136,11 @@ export async function triggerPayout(campaignId: string) {
  */
 export async function triggerRefund(campaignId: string) {
   const cadence = `
-    import CampaignEscrow from 0x14aca78d100d2001
+    import CampaignEscrowV2 from 0x14aca78d100d2001
     
     transaction(campaignId: String, signer: Address) {
-        prepare(signer: auth(Storage, SaveValue, BorrowValue) &Account) {
-            let success = CampaignEscrow.triggerRefund(
+        execute {
+            let success = CampaignEscrowV2.triggerRefund(
                 campaignId: campaignId,
                 signer: signer
             )
@@ -154,11 +152,13 @@ export async function triggerRefund(campaignId: string) {
     }
   `;
   
+  const oracleAddress = fcl.withPrefix(process.env.FLOW_ADDRESS || "14aca78d100d2001");
+  
   return runTx({
     cadence,
     args: (arg, types) => [
       arg(campaignId, types.String),
-      arg(process.env.FLOW_ADDRESS || "14aca78d100d2001", types.Address),
+      arg(oracleAddress, types.Address),
     ],
   });
 }
