@@ -31,10 +31,6 @@ access(all) contract CreatorProfile {
         access(all) fun addProof(proof: @Proof) {
             self.proofs.append(<-proof)
         }
-
-        destroy() {
-            destroy self.proofs
-        }
     }
 
     access(all) fun createEmptyProfile(): @Profile {
