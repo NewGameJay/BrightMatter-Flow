@@ -12,8 +12,8 @@ fcl.config({
   'accessNode.api': 'https://rest-mainnet.onflow.org',
   'discovery.wallet': 'https://fcl-discovery.onflow.org/mainnet/authn',
   'flow.network': 'mainnet',
-  'app.detail.title': 'Veri x Flow',
-  'app.detail.icon': 'https://veri.flow.com/icon.png',
+  'app.detail.title': 'BrightMatter Flow',
+  'app.detail.icon': 'https://brightmatter-oracle.fly.dev/icon.png',
   'service.OpenFDA': {
     'fcl.limit': 1000
   }
@@ -21,14 +21,14 @@ fcl.config({
 
 export { fcl }
 
-// Contract addresses (will be updated after deployment)
+// Contract addresses (production mainnet)
 export const CONTRACTS = {
-  CreatorProfile: '0xCreatorProfile',
-  CampaignEscrow: '0xCampaignEscrow',
+  CreatorProfileV2: '0x14aca78d100d2001',
+  CampaignEscrowV2: '0x14aca78d100d2001',
   FungibleToken: '0xf233dcee88fe0abe',
-  FiatToken: '0x1e4aa0b87d10b141'
+  FlowToken: '0x1654653399040a61'
 } as const
 
 // API endpoints
-export const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001'
+export const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://brightmatter-oracle.fly.dev'
 

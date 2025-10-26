@@ -6,7 +6,7 @@
  */
 
 import React, { createContext, useContext, useEffect, useState } from 'react'
-import * as fcl from '@onflow/fcl'
+import { fcl } from './fcl'
 import { FlowUser } from '@onflow/fcl/types'
 
 interface FCLContextType {
