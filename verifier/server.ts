@@ -66,7 +66,8 @@ app.post('/api/analyze', async (req: Request, res: Response) => {
       success: true,
       score: scoreResult.score,
       metrics: scoreResult.metrics,
-      txResult
+      txResult,
+      flowscanLink: getFlowscanLink(txResult.txId)
     });
   } catch (error: any) {
     console.error('❌ [POST_ANALYSIS] Error:', error);
@@ -88,7 +89,8 @@ app.post('/api/campaigns/:id/payout', async (req: Request, res: Response) => {
     res.json({
       success: true,
       campaignId,
-      result
+      result,
+      flowscanLink: getFlowscanLink(result.txId)
     });
   } catch (error: any) {
     console.error('❌ [PAYOUT] Error:', error);
@@ -110,7 +112,8 @@ app.post('/api/campaigns/:id/refund', async (req: Request, res: Response) => {
     res.json({
       success: true,
       campaignId,
-      result
+      result,
+      flowscanLink: getFlowscanLink(result.txId)
     });
   } catch (error: any) {
     console.error('❌ [REFUND] Error:', error);
@@ -134,6 +137,56 @@ app.get('/api/campaigns/:id', async (req: Request, res: Response) => {
     res.status(500).json({ error: error.message || String(error) });
   }
 });
+
+// Get setup profile transaction for frontend
+app.get('/api/setup-profile', (_req: Request, res: Response) => {
+  const setupTx = `
+import FungibleToken from 0xf233dcee88fe0abe
+import FlowToken from 0x1654653399040a61
+import CreatorProfileV2 from 0x14aca78d100d2001
+
+transaction {
+  prepare(acct: auth(Storage, SaveValue, Capabilities, BorrowValue) &Account) {
+    // 1) Ensure FlowToken receiver vault
+    if acct.borrow<&FlowToken.Vault>(from: /storage/flowTokenVault) == nil {
+      acct.save(<- FlowToken.createEmptyVault(vaultType: Type<@FlowToken.Vault>()), to: /storage/flowTokenVault)
+      acct.link<&{FungibleToken.Receiver}>(
+        /public/flowTokenReceiver,
+        target: /storage/flowTokenVault
+      )
+    } else {
+      if !acct.getCapability<&{FungibleToken.Receiver}>(/public/flowTokenReceiver).check() {
+        acct.link<&{FungibleToken.Receiver}>(
+          /public/flowTokenReceiver,
+          target: /storage/flowTokenVault
+        )
+      }
+    }
+
+    // 2) Ensure CreatorProfileV2 profile in storage + public cap
+    if acct.borrow<&CreatorProfileV2.Profile>(from: /storage/CreatorProfile) == nil {
+      acct.save(<- CreatorProfileV2.createEmptyProfile(), to: /storage/CreatorProfile)
+    }
+    acct.unlink(/public/CreatorProfile)
+    acct.link<&{CreatorProfileV2.ProfilePublic}>(
+      /public/CreatorProfile,
+      target: /storage/CreatorProfile
+    )
+  }
+}
+  `.trim();
+
+  res.json({
+    cadence: setupTx,
+    description: 'Setup CreatorProfile and FlowToken vault',
+    network: 'mainnet'
+  });
+});
+
+// Helper function to generate Flowscan link
+function getFlowscanLink(txId: string): string {
+  return `https://flowscan.org/transaction/${txId}`;
+}
 
 // Start server
 const host = '0.0.0.0';
