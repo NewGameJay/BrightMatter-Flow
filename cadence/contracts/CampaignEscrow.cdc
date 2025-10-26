@@ -9,7 +9,7 @@
 import FungibleToken from 0xf233dcee88fe0abe
 import FlowToken from 0x1654653399040a61
 
-access(all) contract CampaignEscrow {
+pub contract CampaignEscrow {
     
     // Campaign data structure
     access(all) struct Campaign {
@@ -235,10 +235,9 @@ access(all) contract CampaignEscrow {
     access(all) event PayoutTriggered(campaignId: String, totalScore: UFix64, payout: UFix64)
     access(all) event CampaignRefunded(campaignId: String, brand: Address, amount: UFix64)
     
-    init(oracleAddress: Address) {
-        self.oracle = oracleAddress
+    init(oracle: Address) {
+        self.oracle = oracle
         self.campaigns = {}
         self.vault <- FlowToken.createEmptyVault()
-        log("CampaignEscrow contract deployed with oracle: ".concat(self.oracle.toString()))
     }
 }
