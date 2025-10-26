@@ -1,5 +1,5 @@
-import CampaignEscrow from 0x14aca78d100d2001
-import FlowToken from 0x7e60df042a9c0868
+import CampaignEscrowV2 from 0x14aca78d100d2001
+import FlowToken from 0x1654653399040a61
 
 transaction(
     campaignId: String,
@@ -9,9 +9,9 @@ transaction(
     deadline: UFix64,
     from: @FlowToken.Vault
 ) {
-    prepare(signer: AuthAccount) {
+    prepare(signer: auth(Storage, SaveValue, BorrowValue) &Account) {
         // Create campaign with FLOW deposit
-        let success = CampaignEscrow.createCampaign(
+        let success = CampaignEscrowV2.createCampaign(
             id: campaignId,
             creator: creator,
             threshold: threshold,
