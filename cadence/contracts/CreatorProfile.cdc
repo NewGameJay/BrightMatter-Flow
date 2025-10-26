@@ -1,12 +1,12 @@
-pub contract CreatorProfile {
+access(all) contract CreatorProfile {
 
-    pub let oracle: Address
+    access(all) let oracle: Address
 
-    pub resource Proof {
-        pub let postId: String
-        pub let score: UFix64
-        pub let timestamp: UFix64
-        pub let campaignId: String
+    access(all) resource Proof {
+        access(all) let postId: String
+        access(all) let score: UFix64
+        access(all) let timestamp: UFix64
+        access(all) let campaignId: String
 
         init(postId: String, score: UFix64, timestamp: UFix64, campaignId: String) {
             self.postId = postId
@@ -17,18 +17,18 @@ pub contract CreatorProfile {
     }
 
     // Public interface you expose via a capability
-    pub resource interface ProfilePublic {
-        pub fun addProof(proof: @Proof)
+    access(all) resource interface ProfilePublic {
+        access(all) fun addProof(proof: @Proof)
     }
 
-    pub resource Profile: ProfilePublic {
-        pub var proofs: [@Proof]
+    access(all) resource Profile: ProfilePublic {
+        access(all) var proofs: @[Proof]
 
         init() {
             self.proofs <- []
         }
 
-        pub fun addProof(proof: @Proof) {
+        access(all) fun addProof(proof: @Proof) {
             self.proofs.append(<-proof)
         }
 
@@ -37,16 +37,16 @@ pub contract CreatorProfile {
         }
     }
 
-    pub fun createEmptyProfile(): @Profile {
+    access(all) fun createEmptyProfile(): @Profile {
         return <- create Profile()
     }
 
-    pub fun createProof(postId: String, score: UFix64, timestamp: UFix64, campaignId: String): @Proof {
+    access(all) fun createProof(postId: String, score: UFix64, timestamp: UFix64, campaignId: String): @Proof {
         return <- create Proof(postId: postId, score: score, timestamp: timestamp, campaignId: campaignId)
     }
 
     // Contract-level wrapper with oracle check
-    pub fun addProofFor(
+    access(all) fun addProofFor(
         creator: Address,
         postId: String,
         score: UFix64,
