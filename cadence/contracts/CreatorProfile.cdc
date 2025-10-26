@@ -1,4 +1,4 @@
-access(all) contract CreatorProfile {
+access(all) contract CreatorProfileV2 {
 
     access(all) let oracle: Address
 
@@ -33,8 +33,8 @@ access(all) contract CreatorProfile {
         }
     }
 
-    access(all) fun createEmptyProfile(): @Profile {
-        return <- create Profile()
+    access(all) fun createEmptyProfile(): @CreatorProfileV2.Profile {
+        return <- create CreatorProfileV2.Profile()
     }
 
     access(all) fun createProof(postId: String, score: UFix64, timestamp: UFix64, campaignId: String): @Proof {
@@ -52,8 +52,8 @@ access(all) contract CreatorProfile {
     ) {
         pre { signer == self.oracle: "only oracle may add proof" }
 
-        let cap = getAccount(creator)
-            .getCapability<&{ProfilePublic}>(/public/CreatorProfile)
+        let creatorAcct = getAccount(creator)
+        let cap: Capability<&{CreatorProfileV2.ProfilePublic}> = creatorAcct.capabilities.get<Capability<&{CreatorProfileV2.ProfilePublic}>>(/public/CreatorProfile)!
 
         let profileRef = cap.borrow()
             ?? panic("Creator profile not found or wrong cap type")
