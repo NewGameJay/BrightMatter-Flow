@@ -53,7 +53,7 @@ access(all) contract CreatorProfileV2 {
         pre { signer == self.oracle: "only oracle may add proof" }
 
         let creatorAcct = getAccount(creator)
-        let cap: Capability<&{CreatorProfileV2.ProfilePublic}> = creatorAcct.capabilities.get<Capability<&{CreatorProfileV2.ProfilePublic}>>(/public/CreatorProfile)!
+        let cap: Capability<&{CreatorProfileV2.ProfilePublic}> = creatorAcct.capabilities.get<&{CreatorProfileV2.ProfilePublic}>(/public/CreatorProfile)!
 
         let profileRef = cap.borrow()
             ?? panic("Creator profile not found or wrong cap type")
