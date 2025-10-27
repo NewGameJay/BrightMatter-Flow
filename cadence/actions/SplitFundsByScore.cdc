@@ -2,8 +2,18 @@
  * SplitFundsByScore Action
  * 
  * Forte Action to calculate creator payout amounts from percentages
- * Accepts dynamic splits from backend
+ * Accepts dynamic splits from backend and returns [Payout] structs
  */
+
+access(all) struct Payout {
+    access(all) let address: Address
+    access(all) let amount: UFix64
+
+    init(address: Address, amount: UFix64) {
+        self.address = address
+        self.amount = amount
+    }
+}
 
 access(all) struct SplitFundsByScore {
     access(all) let budget: UFix64
@@ -14,7 +24,7 @@ access(all) struct SplitFundsByScore {
         self.splits = splits
     }
     
-    access(all) fun execute(): [{Address: UFix64}] {
+    access(all) fun execute(): [Payout] {
         // Validate: sum of percents must be ≈ 1.0
         var totalPercent: UFix64 = 0.0
         for split in self.splits {
@@ -28,13 +38,13 @@ access(all) struct SplitFundsByScore {
                message: "Percents must sum to 1.0")
         
         // Calculate actual amounts
-        var payouts: [{Address: UFix64}] = []
+        var payouts: [Payout] = []
         
         for split in self.splits {
             for addr in split.keys {
                 let percent = split[addr]!
                 let amount = self.budget * percent
-                payouts.append({addr: amount})
+                payouts.append(Payout(address: addr, amount: amount))
             }
         }
         
