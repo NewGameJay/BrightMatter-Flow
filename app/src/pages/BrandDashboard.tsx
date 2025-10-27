@@ -90,15 +90,21 @@ transaction(
       `.trim()
 
       // Execute the transaction via FCL
+      // Helper to format UFix64 with exactly one decimal place
+      const formatUFix64 = (value: string | number): string => {
+        const num = typeof value === 'string' ? parseFloat(value) : value
+        return num.toFixed(1)
+      }
+      
       const txId = await fcl.mutate({
         cadence,
         args: (arg: any, t: any) => [
           arg(formData.campaignId, t.String),
           arg(formData.creatorAddress, t.Address),
-          arg(`${formData.threshold}.00`, t.UFix64),
-          arg(`${formData.payout}.00`, t.UFix64),
-          arg(`${deadlineSeconds}.00`, t.UFix64),
-          arg(`${formData.payout}.00`, t.UFix64) // deposit same as payout
+          arg(formatUFix64(formData.threshold), t.UFix64),
+          arg(formatUFix64(formData.payout), t.UFix64),
+          arg(formatUFix64(deadlineSeconds), t.UFix64),
+          arg(formatUFix64(formData.payout), t.UFix64) // deposit same as payout
         ],
         proposer: fcl.currentUser().authorization,
         payer: fcl.currentUser().authorization,
