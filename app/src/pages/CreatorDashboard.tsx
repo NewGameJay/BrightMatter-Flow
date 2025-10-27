@@ -12,6 +12,7 @@ import { apiClient } from '../utils/api'
 const CreatorDashboard: React.FC = () => {
   const { user, isConnected, hasProfile, setHasProfile } = useFCL()
   const [postUrl, setPostUrl] = useState('')
+  const [selectedCampaign, setSelectedCampaign] = useState<string>('')
   const [analysisResult, setAnalysisResult] = useState<any>(null)
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [isUpdating, setIsUpdating] = useState(false)
@@ -59,13 +60,50 @@ const CreatorDashboard: React.FC = () => {
   }
 
   const analyzePost = async () => {
-    if (!postUrl.trim()) return
+    if (!postUrl.trim()) {
+      alert('Please enter a post URL')
+      return
+    }
+    
+    if (!selectedCampaign) {
+      alert('Please select a campaign')
+      return
+    }
+    
+    if (!user?.addr) {
+      alert('Please connect your wallet')
+      return
+    }
     
     setIsAnalyzing(true)
     try {
-      const response = await apiClient.analyzePost(postUrl)
-      if (response.success) {
-        setAnalysisResult(response.data)
+      // Step 1: Analyze post (gets mock 5.0 score)
+      const analysisResponse = await apiClient.analyzePost(postUrl)
+      if (!analysisResponse.success) {
+        throw new Error('Analysis failed')
+      }
+      
+      setAnalysisResult(analysisResponse.data)
+      
+      // Step 2: Record score on-chain via /api/analyze
+      const recordResponse = await fetch(`${import.meta.env.VITE_API_URL || 'https://brightmatter-oracle.fly.dev'}/api/analyze`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          postUrl,
+          campaignId: selectedCampaign,
+          creatorAddress: user.addr
+        })
+      })
+      
+      const recordData = await recordResponse.json()
+      
+      if (recordData.success) {
+        alert(`✅ Post analyzed and recorded on-chain!\nScore: ${analysisResponse.data.score.toFixed(1)}\nCampaign: ${selectedCampaign}\nTx: ${recordData.txResult.txId}`)
+        // Reload campaigns to see updated score
+        loadCampaigns()
+      } else {
+        throw new Error(recordData.error || 'Failed to record score on-chain')
       }
     } catch (error) {
       console.error('Failed to analyze post:', error)
@@ -144,8 +182,23 @@ const CreatorDashboard: React.FC = () => {
 
       {/* Post Analysis */}
       <div className="card">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">Analyze Post</h2>
+        <h2 className="text-xl font-semibold text-gray-900 mb-4">Submit Content for Campaign</h2>
         <div className="space-y-4">
+          <div>
+            <label className="label">Select Campaign</label>
+            <select
+              value={selectedCampaign}
+              onChange={(e) => setSelectedCampaign(e.target.value)}
+              className="input"
+            >
+              <option value="">-- Select a campaign --</option>
+              {campaigns && campaigns.map((campaign) => (
+                <option key={campaign.id} value={campaign.id}>
+                  {campaign.id} - {parseFloat(campaign.payout).toFixed(1)} FLOW - Threshold: {parseFloat(campaign.threshold).toFixed(1)}
+                </option>
+              ))}
+            </select>
+          </div>
           <div>
             <label className="label">Social Media Post URL</label>
             <input
@@ -158,10 +211,10 @@ const CreatorDashboard: React.FC = () => {
           </div>
           <button
             onClick={analyzePost}
-            disabled={!postUrl.trim() || isAnalyzing}
+            disabled={!postUrl.trim() || !selectedCampaign || isAnalyzing}
             className="btn-primary"
           >
-            {isAnalyzing ? 'Analyzing...' : 'Analyze Post'}
+            {isAnalyzing ? 'Analyzing & Recording...' : 'Submit Content'}
           </button>
         </div>
 
