@@ -14,6 +14,7 @@ fcl.config({
   'flow.network': 'mainnet',
   'app.detail.title': 'BrightMatter Flow',
   'app.detail.icon': 'https://brightmatter-oracle.fly.dev/icon.png',
+  'walletconnect.projectId': import.meta.env.VITE_WALLETCONNECT_PROJECT_ID || 'd433880630349d5f4fc2dbb859c9a5df',
   'service.OpenFDA': {
     'fcl.limit': 1000
   }

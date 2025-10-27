@@ -69,13 +69,12 @@ transaction(
   deadline: UFix64,
   deposit: UFix64
 ) {
-  let vaultRef: &FlowToken.Vault
-  prepare(acct: auth(Storage, BorrowValue) &Account) {
-    self.vaultRef = acct.borrow<&FlowToken.Vault>(from: /storage/flowTokenVault)
+  prepare(signer: auth(Storage, SaveValue, BorrowValue) &Account) {
+    let vaultRef = signer.borrow<&FlowToken.Vault>(from: /storage/flowTokenVault)
       ?? panic("Brand: missing FlowToken vault")
-  }
-  execute {
-    let payment <- self.vaultRef.withdraw(amount: deposit)
+    
+    let payment <- vaultRef.withdraw(amount: deposit) as! @FlowToken.Vault
+    
     let ok = CampaignEscrowV2.createCampaign(
       id: id,
       creator: creator,
