@@ -25,8 +25,18 @@ const CreatorDashboard: React.FC = () => {
   }, [])
 
   const loadCampaigns = async () => {
-    // TODO: Replace with actual API call to get available campaigns
-    setCampaigns([])
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'https://brightmatter-oracle.fly.dev'}/api/campaigns`)
+      const data = await response.json()
+      if (data.success && data.campaigns) {
+        // Filter to only show open campaigns
+        const openCampaigns = data.campaigns.filter((c: Campaign) => c.type === 'open')
+        setCampaigns(openCampaigns)
+      }
+    } catch (error) {
+      console.error('Failed to load campaigns:', error)
+      setCampaigns([])
+    }
   }
 
   const handleSelectCampaign = async (campaignId: string) => {

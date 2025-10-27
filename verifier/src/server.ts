@@ -266,6 +266,17 @@ app.post('/api/campaigns/:id/submit', async (req: Request, res: Response) => {
   }
 });
 
+// Get all campaigns
+app.get('/api/campaigns', async (req: Request, res: Response) => {
+  try {
+    const campaigns = db.getAllCampaigns();
+    res.json({ success: true, campaigns });
+  } catch (error: any) {
+    console.error('❌ [LIST_CAMPAIGNS] Error:', error);
+    res.status(500).json({ error: error.message || String(error) });
+  }
+});
+
 // Get campaign leaderboard
 app.get('/api/campaigns/:id/leaderboard', async (req: Request, res: Response) => {
   try {
