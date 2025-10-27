@@ -59,7 +59,7 @@ const BrandDashboard: React.FC = () => {
       const cadence = `
 import FungibleToken from 0xf233dcee88fe0abe
 import FlowToken from 0x1654653399040a61
-import CampaignEscrowV3 from 0x14aca78d100d2001
+import CampaignEscrowV2 from 0x14aca78d100d2001
 
 transaction(
   id: String,
@@ -76,7 +76,7 @@ transaction(
     
     let payment <- vaultRef.withdraw(amount: deposit) as! @FlowToken.Vault
     
-    let ok = CampaignEscrowV3.createCampaign(
+    let ok = CampaignEscrowV2.createCampaign(
       id: id,
       creator: creator,
       threshold: threshold,
@@ -126,25 +126,9 @@ transaction(
         deadline: ''
       })
       loadCampaigns()
-    } catch (error: any) {
+    } catch (error) {
       console.error('Failed to create campaign:', error)
-      
-      // Check for specific error messages
-      let errorMessage = 'Failed to create campaign. Please try again.'
-      
-      if (error?.message) {
-        if (error.message.includes('Campaign ID already exists')) {
-          errorMessage = `Campaign ID "${formData.campaignId}" already exists. Please use a different ID.`
-        } else if (error.message.includes('Payout must be positive')) {
-          errorMessage = 'Payout amount must be greater than 0.'
-        } else if (error.message.includes('No FlowToken vault found')) {
-          errorMessage = 'FlowToken vault not found. Please set up your wallet first.'
-        } else {
-          errorMessage = `Error: ${error.message}`
-        }
-      }
-      
-      alert(errorMessage)
+      alert(`Failed to create campaign: ${error}`)
     } finally {
       setIsCreating(false)
     }
@@ -160,8 +144,8 @@ transaction(
   if (!isConnected) {
     return (
       <div className="text-center py-16">
-        <h2 className="text-2xl font-bold text-white mb-4">Connect Your Wallet</h2>
-        <p className="text-gray-300 mb-8">Please connect your Flow wallet to access the brand dashboard.</p>
+        <h2 className="text-2xl font-bold text-gray-900 mb-4">Connect Your Wallet</h2>
+        <p className="text-gray-600 mb-8">Please connect your Flow wallet to access the brand dashboard.</p>
       </div>
     )
   }
@@ -171,8 +155,8 @@ transaction(
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold text-white">Brand Dashboard</h1>
-          <p className="text-gray-300 mt-2">
+          <h1 className="text-3xl font-bold text-gray-900">Brand Dashboard</h1>
+          <p className="text-gray-600 mt-2">
             Create and manage creator campaigns with automated payouts
           </p>
         </div>
@@ -187,7 +171,7 @@ transaction(
       {/* Create Campaign Form */}
       {showCreateForm && (
         <div className="card">
-          <h2 className="text-xl font-semibold text-white mb-4">Create New Campaign</h2>
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">Create New Campaign</h2>
           <form onSubmit={createCampaign} className="space-y-4">
             <div>
               <label className="label">Campaign ID</label>
@@ -229,19 +213,17 @@ transaction(
                 />
               </div>
               <div>
-                <label className="label">Payout Amount (FLOW)</label>
+                <label className="label">Payout Amount (USDF)</label>
                 <input
                   type="number"
                   name="payout"
                   value={formData.payout}
                   onChange={handleInputChange}
-                  placeholder="0.05"
-                  min="0.00000001"
-                  step="0.00000001"
+                  placeholder="100"
+                  min="0"
                   className="input"
                   required
                 />
-                <p className="text-xs text-gray-500 mt-1">Minimum: 0.00000001 FLOW</p>
               </div>
             </div>
             <div>
@@ -281,29 +263,29 @@ transaction(
 
       {/* Campaigns List */}
       <div className="card">
-        <h2 className="text-xl font-semibold text-white mb-4">Your Campaigns</h2>
+        <h2 className="text-xl font-semibold text-gray-900 mb-4">Your Campaigns</h2>
         {campaigns && campaigns.length > 0 ? (
           <div className="space-y-4">
             {campaigns.map((campaign) => (
-              <div key={campaign.id} className="p-4 border border-veri-border rounded-lg">
+              <div key={campaign.id} className="p-4 border border-gray-200 rounded-lg">
                 <div className="flex justify-between items-start">
                   <div className="flex-1">
-                    <h3 className="font-semibold text-white">Campaign {campaign.id}</h3>
+                    <h3 className="font-semibold text-gray-900">Campaign {campaign.id}</h3>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-2 text-sm">
                       <div>
-                        <span className="text-gray-300">Creator:</span>
+                        <span className="text-gray-600">Creator:</span>
                         <div className="font-medium">{campaign.creator.slice(0, 8)}...</div>
                       </div>
                       <div>
-                        <span className="text-gray-300">Threshold:</span>
+                        <span className="text-gray-600">Threshold:</span>
                         <div className="font-medium">{campaign.threshold}</div>
                       </div>
                       <div>
-                        <span className="text-gray-300">Payout:</span>
+                        <span className="text-gray-600">Payout:</span>
                         <div className="font-medium">{campaign.payout} USDF</div>
                       </div>
                       <div>
-                        <span className="text-gray-300">Deadline:</span>
+                        <span className="text-gray-600">Deadline:</span>
                         <div className="font-medium">
                           {new Date(campaign.deadline * 1000).toLocaleDateString()}
                         </div>
@@ -321,7 +303,7 @@ transaction(
           </div>
         ) : (
           <div className="text-center py-8">
-            <p className="text-gray-300 mb-4">No campaigns created yet.</p>
+            <p className="text-gray-600 mb-4">No campaigns created yet.</p>
             <button
               onClick={() => setShowCreateForm(true)}
               className="btn-primary"
@@ -334,10 +316,10 @@ transaction(
 
       {/* Vault Balance */}
       <div className="card">
-        <h2 className="text-xl font-semibold text-white mb-4">Escrow Vault</h2>
+        <h2 className="text-xl font-semibold text-gray-900 mb-4">Escrow Vault</h2>
         <div className="text-center py-4">
           <div className="text-2xl font-bold text-flow-blue">0 USDF</div>
-          <div className="text-sm text-gray-300">Total in escrow</div>
+          <div className="text-sm text-gray-600">Total in escrow</div>
         </div>
       </div>
     </div>

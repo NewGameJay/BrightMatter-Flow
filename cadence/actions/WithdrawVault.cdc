@@ -1,31 +1,25 @@
 /**
  * WithdrawVault Action
  * 
- * Forte Action for withdrawing FLOW from campaign vault
- * Part of composable payout workflow
+ * Forte Action to withdraw FLOW from campaign escrow vault
  */
 
-import CampaignEscrow from 0x14aca78d100d2001
+import FungibleToken from 0xf233dcee88fe0abe
 import FlowToken from 0x1654653399040a61
+import CampaignEscrowV3 from 0x14aca78d100d2001
 
-access(all) fun main(
-    campaignId: String,
-    amount: UFix64,
-    oracleAddress: Address
-): @FlowToken.Vault {
-    // Get campaign data
-    let campaign = CampaignEscrow.getCampaign(id: campaignId)
-    if campaign == nil {
-        panic("Campaign not found")
+access(all) struct WithdrawVault {
+    access(all) let campaignId: String
+    access(all) let amount: UFix64
+    
+    init(campaignId: String, amount: UFix64) {
+        self.campaignId = campaignId
+        self.amount = amount
     }
     
-    // Verify oracle authorization
-    if oracleAddress != CampaignEscrow.oracle {
-        panic("Unauthorized oracle")
+    access(all) fun execute(): @FlowToken.Vault {
+        // This would be called as part of the Action chain
+        // For now, returns empty vault as placeholder
+        return <- FlowToken.createEmptyVault(vaultType: Type<@FlowToken.Vault>()) as! @FlowToken.Vault
     }
-    
-    // Withdraw from vault
-    let vault = CampaignEscrow.vault.withdraw(amount: amount)
-    
-    return <- vault
 }
