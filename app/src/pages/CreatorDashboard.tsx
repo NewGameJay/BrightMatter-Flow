@@ -202,8 +202,8 @@ const CreatorDashboard: React.FC = () => {
   if (!isConnected) {
     return (
       <div className="text-center py-16">
-        <h2 className="text-2xl font-bold text-gray-900 mb-4">Connect Your Wallet</h2>
-        <p className="text-gray-600 mb-8">Please connect your Flow wallet to access the creator dashboard.</p>
+        <h2 className="text-2xl font-display font-bold text-white mb-4">Connect Your Wallet</h2>
+        <p className="text-gray-300 mb-8">Please connect your Flow wallet to access the creator dashboard.</p>
       </div>
     )
   }
@@ -212,8 +212,8 @@ const CreatorDashboard: React.FC = () => {
     <div className="space-y-8">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">Creator Dashboard</h1>
-        <p className="text-gray-600 mt-2">
+        <h1 className="text-3xl font-display font-bold text-white">Creator Dashboard</h1>
+        <p className="text-gray-300 mt-2">
           Manage your campaigns and submit content for analysis
         </p>
       </div>
@@ -221,11 +221,11 @@ const CreatorDashboard: React.FC = () => {
       {/* Success Modal */}
       {showSuccess && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-8 max-w-md text-center">
-            <div className="text-6xl mb-4">🎉</div>
-            <h3 className="text-2xl font-bold text-gray-900 mb-4">Success!</h3>
-            <p className="text-gray-600 mb-6">{successMessage}</p>
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-flow-blue mx-auto"></div>
+                  <div className="bg-veri-gray border border-veri-border rounded-lg p-8 max-w-md text-center">
+          <div className="text-6xl mb-4">🎉</div>
+          <h3 className="text-2xl font-display font-bold text-white mb-4">Success!</h3>
+          <p className="text-gray-300 mb-6">{successMessage}</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-flow-blue mx-auto"></div>
           </div>
         </div>
       )}
@@ -233,9 +233,9 @@ const CreatorDashboard: React.FC = () => {
       {/* Loading Overlay */}
       {(isAnalyzing || isSettingUp || isClaiming) && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-8 max-w-md text-center">
+          <div className="bg-veri-gray border border-veri-border rounded-lg p-8 max-w-md text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-flow-blue mx-auto mb-4"></div>
-            <p className="text-gray-600">
+            <p className="text-gray-300">
               {isSettingUp ? 'Setting up profile...' : isClaiming ? 'Processing payout...' : 'Analyzing & Recording...'}
             </p>
           </div>
@@ -244,27 +244,27 @@ const CreatorDashboard: React.FC = () => {
 
       {/* Profile Status */}
       <div className="card">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">Your Profile</h2>
+        <h2 className="text-xl font-semibold text-white mb-4">Your Profile</h2>
         {profile ? (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="text-center">
               <div className="text-3xl font-bold text-flow-blue">{profile.veriScore || 0}</div>
-              <div className="text-sm text-gray-600">Current Score</div>
+              <div className="text-sm text-gray-300">Current Score</div>
             </div>
             <div className="text-center">
               <div className="text-3xl font-bold text-veri-green">{profile.totalCampaigns || 0}</div>
-              <div className="text-sm text-gray-600">Total Campaigns</div>
+              <div className="text-sm text-gray-300">Total Campaigns</div>
             </div>
             <div className="text-center">
               <div className="text-lg font-bold text-veri-orange">
                 {user?.addr ? `${user.addr.slice(0, 6)}...${user.addr.slice(-4)}` : 'N/A'}
               </div>
-              <div className="text-sm text-gray-600">Wallet Address</div>
+              <div className="text-sm text-gray-300">Wallet Address</div>
             </div>
           </div>
         ) : (
           <div className="text-center py-8">
-            <p className="text-gray-600 mb-4">Profile not set up. Click below to initialize.</p>
+            <p className="text-gray-300 mb-4">Profile not set up. Click below to initialize.</p>
             <button 
               onClick={setupProfile}
               disabled={isSettingUp}
@@ -278,7 +278,7 @@ const CreatorDashboard: React.FC = () => {
 
       {/* Campaign Selection */}
       <div className="card">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">Select Campaign</h2>
+        <h2 className="text-xl font-semibold text-white mb-4">Select Campaign</h2>
         {campaigns && campaigns.length > 0 ? (
           <div className="space-y-4">
             {campaigns.map((campaign) => (
@@ -287,14 +287,14 @@ const CreatorDashboard: React.FC = () => {
                 className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${
                   selectedCampaign?.id === campaign.id 
                     ? 'border-flow-blue bg-flow-blue bg-opacity-5' 
-                    : 'border-gray-200 hover:border-flow-blue hover:border-opacity-50'
+                    : 'border-veri-border hover:border-flow-blue hover:border-opacity-50'
                 }`}
                 onClick={() => setSelectedCampaign(campaign)}
               >
                 <div className="flex justify-between items-start">
                   <div>
-                    <h3 className="font-semibold text-gray-900">Campaign {campaign.id}</h3>
-                    <div className="mt-2 space-y-1 text-sm text-gray-600">
+                    <h3 className="font-semibold text-white">Campaign {campaign.id}</h3>
+                    <div className="mt-2 space-y-1 text-sm text-gray-300">
                       <p>💰 Payout: <span className="font-medium text-flow-blue">{parseFloat(campaign.payout).toFixed(1)} FLOW</span></p>
                       <p>🎯 Threshold: <span className="font-medium">{parseFloat(campaign.threshold).toFixed(1)} points</span></p>
                       <p>📊 Current Score: <span className="font-medium">{parseFloat(campaign.totalScore).toFixed(1)}</span></p>
@@ -303,8 +303,8 @@ const CreatorDashboard: React.FC = () => {
                   </div>
                   <div className={`px-3 py-1 rounded-full text-sm ${
                     parseFloat(campaign.totalScore) >= parseFloat(campaign.threshold)
-                      ? 'bg-green-100 text-green-800'
-                      : 'bg-yellow-100 text-yellow-800'
+                      ? 'bg-veri-green/20 text-veri-green'
+                      : 'bg-veri-orange/20 text-veri-orange'
                   }`}>
                     {parseFloat(campaign.totalScore) >= parseFloat(campaign.threshold) ? 'Eligible' : 'Active'}
                   </div>
@@ -313,14 +313,14 @@ const CreatorDashboard: React.FC = () => {
             ))}
           </div>
         ) : (
-          <p className="text-gray-600 text-center py-8">No campaigns found.</p>
+          <p className="text-gray-300 text-center py-8">No campaigns found.</p>
         )}
       </div>
 
       {/* Content Submission */}
       {selectedCampaign && (
         <div className="card">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Submit Content</h2>
+          <h2 className="text-xl font-semibold text-white mb-4">Submit Content</h2>
           <div className="space-y-4">
             <div>
               <label className="label">Social Media Post URL</label>
@@ -346,7 +346,7 @@ const CreatorDashboard: React.FC = () => {
 
       {/* Your Campaigns */}
       <div className="card">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">Your Campaigns</h2>
+        <h2 className="text-xl font-semibold text-white mb-4">Your Campaigns</h2>
         {campaigns && campaigns.length > 0 ? (
           <div className="space-y-4">
             {campaigns.map((campaign) => {
@@ -355,11 +355,11 @@ const CreatorDashboard: React.FC = () => {
               const isClaimingThis = isClaiming && claimingCampaignId === campaign.id
               
               return (
-                <div key={campaign.id} className="p-4 border border-gray-200 rounded-lg">
+                <div key={campaign.id} className="p-4 border border-veri-border rounded-lg">
                   <div className="flex justify-between items-start mb-4">
                     <div>
-                      <h3 className="font-semibold text-gray-900">Campaign {campaign.id}</h3>
-                      <p className="text-sm text-gray-600 mt-1">
+                      <h3 className="font-semibold text-white">Campaign {campaign.id}</h3>
+                      <p className="text-sm text-gray-300 mt-1">
                         Threshold: {parseFloat(campaign.threshold).toFixed(1)} | 
                         Payout: {parseFloat(campaign.payout).toFixed(1)} FLOW |
                         Score: {parseFloat(campaign.totalScore).toFixed(1)}
@@ -367,10 +367,10 @@ const CreatorDashboard: React.FC = () => {
                     </div>
                     <div className={`px-3 py-1 rounded-full text-sm ${
                       isPaidOut
-                        ? 'bg-gray-100 text-gray-800'
+                        ? 'bg-veri-gray text-gray-400'
                         : isEligible
-                        ? 'bg-green-100 text-green-800'
-                        : 'bg-yellow-100 text-yellow-800'
+                        ? 'bg-veri-green/20 text-veri-green'
+                        : 'bg-veri-orange/20 text-veri-orange'
                     }`}>
                       {isPaidOut ? 'Paid Out' : isEligible ? 'Eligible' : 'Active'}
                     </div>
@@ -400,7 +400,7 @@ const CreatorDashboard: React.FC = () => {
             })}
           </div>
         ) : (
-          <p className="text-gray-600 text-center py-8">No campaigns found.</p>
+          <p className="text-gray-300 text-center py-8">No campaigns found.</p>
         )}
       </div>
     </div>

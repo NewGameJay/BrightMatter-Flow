@@ -160,8 +160,8 @@ transaction(
   if (!isConnected) {
     return (
       <div className="text-center py-16">
-        <h2 className="text-2xl font-bold text-gray-900 mb-4">Connect Your Wallet</h2>
-        <p className="text-gray-600 mb-8">Please connect your Flow wallet to access the brand dashboard.</p>
+        <h2 className="text-2xl font-bold text-white mb-4">Connect Your Wallet</h2>
+        <p className="text-gray-300 mb-8">Please connect your Flow wallet to access the brand dashboard.</p>
       </div>
     )
   }
@@ -171,8 +171,8 @@ transaction(
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Brand Dashboard</h1>
-          <p className="text-gray-600 mt-2">
+          <h1 className="text-3xl font-bold text-white">Brand Dashboard</h1>
+          <p className="text-gray-300 mt-2">
             Create and manage creator campaigns with automated payouts
           </p>
         </div>
@@ -187,7 +187,7 @@ transaction(
       {/* Create Campaign Form */}
       {showCreateForm && (
         <div className="card">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Create New Campaign</h2>
+          <h2 className="text-xl font-semibold text-white mb-4">Create New Campaign</h2>
           <form onSubmit={createCampaign} className="space-y-4">
             <div>
               <label className="label">Campaign ID</label>
@@ -281,29 +281,29 @@ transaction(
 
       {/* Campaigns List */}
       <div className="card">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">Your Campaigns</h2>
+        <h2 className="text-xl font-semibold text-white mb-4">Your Campaigns</h2>
         {campaigns && campaigns.length > 0 ? (
           <div className="space-y-4">
             {campaigns.map((campaign) => (
-              <div key={campaign.id} className="p-4 border border-gray-200 rounded-lg">
+              <div key={campaign.id} className="p-4 border border-veri-border rounded-lg">
                 <div className="flex justify-between items-start">
                   <div className="flex-1">
-                    <h3 className="font-semibold text-gray-900">Campaign {campaign.id}</h3>
+                    <h3 className="font-semibold text-white">Campaign {campaign.id}</h3>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-2 text-sm">
                       <div>
-                        <span className="text-gray-600">Creator:</span>
+                        <span className="text-gray-300">Creator:</span>
                         <div className="font-medium">{campaign.creator.slice(0, 8)}...</div>
                       </div>
                       <div>
-                        <span className="text-gray-600">Threshold:</span>
+                        <span className="text-gray-300">Threshold:</span>
                         <div className="font-medium">{campaign.threshold}</div>
                       </div>
                       <div>
-                        <span className="text-gray-600">Payout:</span>
+                        <span className="text-gray-300">Payout:</span>
                         <div className="font-medium">{campaign.payout} USDF</div>
                       </div>
                       <div>
-                        <span className="text-gray-600">Deadline:</span>
+                        <span className="text-gray-300">Deadline:</span>
                         <div className="font-medium">
                           {new Date(campaign.deadline * 1000).toLocaleDateString()}
                         </div>
@@ -321,7 +321,7 @@ transaction(
           </div>
         ) : (
           <div className="text-center py-8">
-            <p className="text-gray-600 mb-4">No campaigns created yet.</p>
+            <p className="text-gray-300 mb-4">No campaigns created yet.</p>
             <button
               onClick={() => setShowCreateForm(true)}
               className="btn-primary"
@@ -334,10 +334,10 @@ transaction(
 
       {/* Vault Balance */}
       <div className="card">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">Escrow Vault</h2>
+        <h2 className="text-xl font-semibold text-white mb-4">Escrow Vault</h2>
         <div className="text-center py-4">
           <div className="text-2xl font-bold text-flow-blue">0 USDF</div>
-          <div className="text-sm text-gray-600">Total in escrow</div>
+          <div className="text-sm text-gray-300">Total in escrow</div>
         </div>
       </div>
     </div>
