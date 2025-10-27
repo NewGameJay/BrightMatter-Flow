@@ -177,3 +177,19 @@ export async function readCampaign(campaignId: string) {
   
   return runScript(cadence, (arg: any, t: any) => [arg(campaignId, t.String)]);
 }
+
+/**
+ * Get campaigns by creator
+ */
+export async function getCampaignsByCreator(creatorAddress: string) {
+  const cadence = `
+    import CampaignEscrowV2 from 0x14aca78d100d2001
+    
+    access(all) fun main(creator: Address): [CampaignEscrowV2.Campaign] {
+        return CampaignEscrowV2.getCampaignsByCreator(creator: creator)
+    }
+  `;
+  
+  const creatorAddr = fcl.withPrefix(creatorAddress);
+  return runScript(cadence, (arg: any, t: any) => [arg(creatorAddr, t.Address)]);
+}

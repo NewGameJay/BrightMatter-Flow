@@ -245,6 +245,17 @@ access(all) contract CampaignEscrowV2 {
         return campaigns
     }
     
+    // Get campaigns by creator
+    access(all) fun getCampaignsByCreator(creator: Address): [Campaign] {
+        let result: [Campaign] = []
+        for campaign in self.campaigns.values {
+            if campaign.creator == creator {
+                result.append(campaign)
+            }
+        }
+        return result
+    }
+    
     // Events
     access(all) event CampaignCreated(id: String, creator: Address, threshold: UFix64, payout: UFix64)
     access(all) event CreatorScoreUpdated(campaignId: String, creator: Address, score: UFix64)
