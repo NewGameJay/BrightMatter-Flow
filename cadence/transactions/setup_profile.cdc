@@ -3,32 +3,31 @@ import FlowToken from 0x1654653399040a61
 import CreatorProfileV2 from 0x14aca78d100d2001
 
 transaction {
-  prepare(acct: auth(Storage, SaveValue, Capabilities, BorrowValue) &Account) {
+  prepare(signer: auth(Storage, SaveValue, Capabilities, BorrowValue) &Account) {
     // 1) Ensure FlowToken receiver vault
-    if acct.borrow<&FlowToken.Vault>(from: /storage/flowTokenVault) == nil {
-      acct.save(<- FlowToken.createEmptyVault(vaultType: Type<@FlowToken.Vault>()), to: /storage/flowTokenVault)
-      acct.link<&{FungibleToken.Receiver}>(
-        /public/flowTokenReceiver,
-        target: /storage/flowTokenVault
-      )
+    let vaultRef = signer.storage.borrow<&FlowToken.Vault>(from: /storage/flowTokenVault)
+    if vaultRef == nil {
+      signer.storage.save(<- FlowToken.createEmptyVault(vaultType: Type<@FlowToken.Vault>()), to: /storage/flowTokenVault)
+      let cap = signer.capabilities.storage.issue<&{FungibleToken.Receiver}>(/storage/flowTokenVault)
+      signer.capabilities.publish(cap, at: /public/flowTokenReceiver)
     } else {
       // Make sure the public receiver link exists
-      if !acct.getCapability<&{FungibleToken.Receiver}>(/public/flowTokenReceiver).check() {
-        acct.link<&{FungibleToken.Receiver}>(
-          /public/flowTokenReceiver,
-          target: /storage/flowTokenVault
-        )
+      let receiverCap = signer.capabilities.get<&{FungibleToken.Receiver}>(/public/flowTokenReceiver)
+      if !receiverCap.check() {
+        let cap = signer.capabilities.storage.issue<&{FungibleToken.Receiver}>(/storage/flowTokenVault)
+        signer.capabilities.publish(cap, at: /public/flowTokenReceiver)
       }
     }
 
     // 2) Ensure CreatorProfileV2 profile in storage + public cap
-    if acct.borrow<&CreatorProfileV2.Profile>(from: /storage/CreatorProfile) == nil {
-      acct.save(<- CreatorProfileV2.createEmptyProfile(), to: /storage/CreatorProfile)
+    let profileRef = signer.storage.borrow<&CreatorProfileV2.Profile>(from: /storage/CreatorProfile)
+    if profileRef == nil {
+      signer.storage.save(<- CreatorProfileV2.createEmptyProfile(), to: /storage/CreatorProfile)
     }
-    acct.unlink(/public/CreatorProfile)
-    acct.link<&{CreatorProfileV2.ProfilePublic}>(
-      /public/CreatorProfile,
-      target: /storage/CreatorProfile
-    )
+    
+    // Unpublish and republish the public capability
+    signer.capabilities.unpublish(/public/CreatorProfile)
+    let profileCap = signer.capabilities.storage.issue<&{CreatorProfileV2.ProfilePublic}>(/storage/CreatorProfile)
+    signer.capabilities.publish(profileCap, at: /public/CreatorProfile)
   }
 }
