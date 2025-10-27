@@ -9,7 +9,7 @@
 import FungibleToken from 0xf233dcee88fe0abe
 import FlowToken from 0x1654653399040a61
 
-access(all) contract CampaignEscrowV2 {
+access(all) contract CampaignEscrowV3 {
     
     // Campaign data structure
     access(all) struct Campaign {
@@ -23,6 +23,7 @@ access(all) contract CampaignEscrowV2 {
         access(all) let scheduledTxId: String? // Forte scheduled transaction ID for auto-refund
         access(self) var totalScore: UFix64
         access(all) var creatorScores: {Address: UFix64}
+        access(self) var paidOut: Bool
         
         init(
             id: String,
@@ -44,6 +45,7 @@ access(all) contract CampaignEscrowV2 {
             self.scheduledTxId = scheduledTxId
             self.totalScore = 0.0
             self.creatorScores = {}
+            self.paidOut = false
         }
         
         // Setter function to add to total score
@@ -54,6 +56,16 @@ access(all) contract CampaignEscrowV2 {
         // Getter for totalScore
         access(all) fun getTotalScore(): UFix64 {
             return self.totalScore
+        }
+        
+        // Setter for paidOut
+        access(all) fun setPaidOut(_ value: Bool) {
+            self.paidOut = value
+        }
+        
+        // Getter for paidOut
+        access(all) fun isPaidOut(): Bool {
+            return self.paidOut
         }
     }
     
@@ -174,7 +186,10 @@ access(all) contract CampaignEscrowV2 {
             self.campaigns.containsKey(campaignId): "Campaign does not exist"
         }
         
-        let campaign = self.campaigns[campaignId]!
+        var campaign = self.campaigns[campaignId]!
+        
+        // Check if already paid out
+        assert(!campaign.isPaidOut(), message: "Campaign already paid out")
         
         // Check if KPI is met
         if campaign.getTotalScore() >= campaign.threshold {
@@ -189,11 +204,24 @@ access(all) contract CampaignEscrowV2 {
                     let creatorScore = campaign.creatorScores[creator]!
                     let creatorShare = (creatorScore / totalScore) * payoutAmount
                 
-                    // Transfer FLOW to creator
-                    // Note: In a real implementation, you'd need to handle the transfer
-                    // This is simplified for the demo
+                    // Withdraw from escrow vault
+                    let payment <- self.vault.withdraw(amount: creatorShare) as! @FlowToken.Vault
+                    
+                    // Get creator's FlowToken receiver capability
+                    let receiverCap = getAccount(creator)
+                        .capabilities.get<&{FungibleToken.Receiver}>(/public/flowTokenReceiver)
+                    
+                    let receiver = receiverCap.borrow()
+                        ?? panic("Could not borrow receiver for creator")
+                    
+                    // Deposit FLOW to creator
+                    receiver.deposit(from: <-payment)
                 }
             }
+            
+            // Mark as paid out
+            campaign.setPaidOut(true)
+            self.campaigns[campaignId] = campaign
             
             // Emit event
             emit PayoutTriggered(campaignId: campaignId, totalScore: campaign.getTotalScore(), payout: payoutAmount)
@@ -214,13 +242,29 @@ access(all) contract CampaignEscrowV2 {
             self.campaigns.containsKey(campaignId): "Campaign does not exist"
         }
         
-        let campaign = self.campaigns[campaignId]!
+        var campaign = self.campaigns[campaignId]!
+        
+        // Check if already paid out
+        assert(!campaign.isPaidOut(), message: "Campaign already paid out or refunded")
         
         // Check if deadline has passed and KPI not met
         if getCurrentBlock().timestamp > campaign.deadline && campaign.getTotalScore() < campaign.threshold {
-            // Refund FLOW to brand
-            // Note: In a real implementation, you'd need to handle the transfer
-            // This is simplified for the demo
+            // Withdraw full payout amount from escrow
+            let refund <- self.vault.withdraw(amount: campaign.payout) as! @FlowToken.Vault
+            
+            // Get brand's FlowToken receiver capability
+            let receiverCap = getAccount(campaign.brand)
+                .capabilities.get<&{FungibleToken.Receiver}>(/public/flowTokenReceiver)
+            
+            let receiver = receiverCap.borrow()
+                ?? panic("Could not borrow receiver for brand")
+            
+            // Deposit FLOW back to brand
+            receiver.deposit(from: <-refund)
+            
+            // Mark as paid out (refunded)
+            campaign.setPaidOut(true)
+            self.campaigns[campaignId] = campaign
             
             // Emit event
             emit CampaignRefunded(campaignId: campaignId, brand: campaign.brand, amount: campaign.payout)
