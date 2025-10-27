@@ -5,13 +5,13 @@
  */
 
 export const CONTRACTS = {
-  CreatorProfile: '0xCreatorProfile',
-  CampaignEscrow: '0xCampaignEscrow',
+  CreatorProfileV2: '0x14aca78d100d2001',
+  CampaignEscrowV2: '0x14aca78d100d2001',
   FungibleToken: '0xf233dcee88fe0abe',
-  FiatToken: '0x1e4aa0b87d10b141'
+  FlowToken: '0x1654653399040a61'
 } as const
 
-export const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001'
+export const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://brightmatter-oracle.fly.dev'
 
 export const FLOW_NETWORK = 'mainnet'
 
