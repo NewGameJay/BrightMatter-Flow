@@ -20,6 +20,8 @@ const CreatorDashboard: React.FC = () => {
   const [campaigns, setCampaigns] = useState<any[]>([])
   const [showSuccess, setShowSuccess] = useState(false)
   const [successMessage, setSuccessMessage] = useState('')
+  const [isClaiming, setIsClaiming] = useState(false)
+  const [claimingCampaignId, setClaimingCampaignId] = useState<string | null>(null)
 
   useEffect(() => {
     if (isConnected && user?.addr) {
@@ -156,6 +158,47 @@ const CreatorDashboard: React.FC = () => {
     }
   }
 
+  const claimPayout = async (campaignId: string) => {
+    if (!user?.addr) {
+      alert('Please connect your wallet')
+      return
+    }
+    
+    setIsClaiming(true)
+    setClaimingCampaignId(campaignId)
+    
+    try {
+      const apiUrl = (window as any).__API_URL__ || 'https://brightmatter-oracle.fly.dev'
+      const response = await fetch(`${apiUrl}/api/campaigns/${campaignId}/payout`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      })
+      
+      const data = await response.json()
+      
+      if (data.success) {
+        setSuccessMessage(`💰 Payout claimed successfully! TX: ${data.txId}`)
+        setShowSuccess(true)
+        
+        // Reload campaigns to see updated status
+        await loadCampaigns()
+        await loadProfile()
+        
+        setTimeout(() => {
+          setShowSuccess(false)
+        }, 5000)
+      } else {
+        throw new Error(data.error || 'Failed to claim payout')
+      }
+    } catch (error: any) {
+      console.error('Failed to claim payout:', error)
+      alert(`Failed to claim payout: ${error.message}`)
+    } finally {
+      setIsClaiming(false)
+      setClaimingCampaignId(null)
+    }
+  }
+
   if (!isConnected) {
     return (
       <div className="text-center py-16">
@@ -188,11 +231,13 @@ const CreatorDashboard: React.FC = () => {
       )}
 
       {/* Loading Overlay */}
-      {(isAnalyzing || isSettingUp) && (
+      {(isAnalyzing || isSettingUp || isClaiming) && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-8 max-w-md text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-flow-blue mx-auto mb-4"></div>
-            <p className="text-gray-600">{isSettingUp ? 'Setting up profile...' : 'Analyzing & Recording...'}</p>
+            <p className="text-gray-600">
+              {isSettingUp ? 'Setting up profile...' : isClaiming ? 'Processing payout...' : 'Analyzing & Recording...'}
+            </p>
           </div>
         </div>
       )}
@@ -304,27 +349,55 @@ const CreatorDashboard: React.FC = () => {
         <h2 className="text-xl font-semibold text-gray-900 mb-4">Your Campaigns</h2>
         {campaigns && campaigns.length > 0 ? (
           <div className="space-y-4">
-            {campaigns.map((campaign) => (
-              <div key={campaign.id} className="p-4 border border-gray-200 rounded-lg">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <h3 className="font-semibold text-gray-900">Campaign {campaign.id}</h3>
-                    <p className="text-sm text-gray-600">
-                      Threshold: {parseFloat(campaign.threshold).toFixed(1)} | 
-                      Payout: {parseFloat(campaign.payout).toFixed(1)} FLOW |
-                      Score: {parseFloat(campaign.totalScore).toFixed(1)}
-                    </p>
+            {campaigns.map((campaign) => {
+              const isEligible = parseFloat(campaign.totalScore) >= parseFloat(campaign.threshold)
+              const isPaidOut = campaign.paidOut === true
+              const isClaimingThis = isClaiming && claimingCampaignId === campaign.id
+              
+              return (
+                <div key={campaign.id} className="p-4 border border-gray-200 rounded-lg">
+                  <div className="flex justify-between items-start mb-4">
+                    <div>
+                      <h3 className="font-semibold text-gray-900">Campaign {campaign.id}</h3>
+                      <p className="text-sm text-gray-600 mt-1">
+                        Threshold: {parseFloat(campaign.threshold).toFixed(1)} | 
+                        Payout: {parseFloat(campaign.payout).toFixed(1)} FLOW |
+                        Score: {parseFloat(campaign.totalScore).toFixed(1)}
+                      </p>
+                    </div>
+                    <div className={`px-3 py-1 rounded-full text-sm ${
+                      isPaidOut
+                        ? 'bg-gray-100 text-gray-800'
+                        : isEligible
+                        ? 'bg-green-100 text-green-800'
+                        : 'bg-yellow-100 text-yellow-800'
+                    }`}>
+                      {isPaidOut ? 'Paid Out' : isEligible ? 'Eligible' : 'Active'}
+                    </div>
                   </div>
-                  <div className={`px-3 py-1 rounded-full text-sm ${
-                    parseFloat(campaign.totalScore) >= parseFloat(campaign.threshold)
-                      ? 'bg-green-100 text-green-800'
-                      : 'bg-yellow-100 text-yellow-800'
-                  }`}>
-                    {parseFloat(campaign.totalScore) >= parseFloat(campaign.threshold) ? 'Ready for Payout' : 'Active'}
-                  </div>
+                  
+                  {isEligible && !isPaidOut && (
+                    <button
+                      onClick={() => claimPayout(campaign.id)}
+                      disabled={isClaimingThis}
+                      className="btn-primary w-full"
+                    >
+                      {isClaimingThis ? (
+                        <span className="flex items-center justify-center">
+                          <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          Claiming...
+                        </span>
+                      ) : (
+                        `💰 Claim ${parseFloat(campaign.payout).toFixed(1)} FLOW`
+                      )}
+                    </button>
+                  )}
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         ) : (
           <p className="text-gray-600 text-center py-8">No campaigns found.</p>
