@@ -48,9 +48,66 @@ const BrandDashboard: React.FC = () => {
     setIsCreating(true)
     
     try {
-      // This would normally call the smart contract
-      // For now, we'll just show a success message
-      alert('Campaign created successfully! (This would create a real campaign on Flow)')
+      // Build the Cadence transaction for campaign creation
+      const deadlineTimestamp = Date.now() + (parseFloat(formData.deadline) * 3600 * 1000) // hours to milliseconds
+      const deadlineSeconds = Math.floor(deadlineTimestamp / 1000)
+      
+      const cadence = `
+import FungibleToken from 0xf233dcee88fe0abe
+import FlowToken from 0x1654653399040a61
+import CampaignEscrowV2 from 0x14aca78d100d2001
+
+transaction(
+  id: String,
+  creator: Address,
+  threshold: UFix64,
+  payout: UFix64,
+  deadline: UFix64,
+  deposit: UFix64
+) {
+  let vaultRef: &FlowToken.Vault
+  prepare(acct: auth(Storage, BorrowValue) &Account) {
+    self.vaultRef = acct.borrow<&FlowToken.Vault>(from: /storage/flowTokenVault)
+      ?? panic("Brand: missing FlowToken vault")
+  }
+  execute {
+    let payment <- self.vaultRef.withdraw(amount: deposit)
+    let ok = CampaignEscrowV2.createCampaign(
+      id: id,
+      creator: creator,
+      threshold: threshold,
+      payout: payout,
+      deadline: deadline,
+      from: <- payment
+    )
+    assert(ok, message: "createCampaign failed")
+  }
+}
+      `.trim()
+
+      // Execute the transaction via FCL
+      const { fcl } = await import('../config/fcl.tsx')
+      const txId = await fcl.fcl.mutate({
+        cadence,
+        args: (arg: any, t: any) => [
+          arg(formData.campaignId, t.String),
+          arg(formData.creatorAddress, t.Address),
+          arg(`${formData.threshold}.00`, t.UFix64),
+          arg(`${formData.payout}.00`, t.UFix64),
+          arg(`${deadlineSeconds}.00`, t.UFix64),
+          arg(`${formData.payout}.00`, t.UFix64) // deposit same as payout
+        ],
+        proposer: fcl.fcl.currentUser().authorization,
+        payer: fcl.fcl.currentUser().authorization,
+        authorizations: [fcl.fcl.currentUser().authorization],
+        limit: 9999
+      })
+
+      // Wait for transaction to be sealed
+      await fcl.fcl.tx(txId).onceSealed()
+
+      alert(`Campaign created successfully!\nTransaction ID: ${txId}\nView: https://flowscan.org/transaction/${txId}`)
+      
       setShowCreateForm(false)
       setFormData({
         campaignId: '',
@@ -62,7 +119,7 @@ const BrandDashboard: React.FC = () => {
       loadCampaigns()
     } catch (error) {
       console.error('Failed to create campaign:', error)
-      alert('Failed to create campaign. Please try again.')
+      alert(`Failed to create campaign: ${error}`)
     } finally {
       setIsCreating(false)
     }
@@ -161,17 +218,19 @@ const BrandDashboard: React.FC = () => {
               </div>
             </div>
             <div>
-              <label className="label">Deadline (days from now)</label>
+              <label className="label">Deadline (hours from now)</label>
               <input
                 type="number"
                 name="deadline"
                 value={formData.deadline}
                 onChange={handleInputChange}
-                placeholder="30"
+                placeholder="720"
                 min="1"
+                step="1"
                 className="input"
                 required
               />
+              <p className="text-sm text-gray-500 mt-1">Minimum: 1 hour, recommended: 24+ hours</p>
             </div>
             <div className="flex space-x-4">
               <button
