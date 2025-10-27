@@ -213,17 +213,19 @@ transaction(
                 />
               </div>
               <div>
-                <label className="label">Payout Amount (USDF)</label>
+                <label className="label">Payout Amount (FLOW)</label>
                 <input
                   type="number"
                   name="payout"
                   value={formData.payout}
                   onChange={handleInputChange}
-                  placeholder="100"
-                  min="0"
+                  placeholder="0.05"
+                  min="0.00000001"
+                  step="0.00000001"
                   className="input"
                   required
                 />
+                <p className="text-xs text-gray-500 mt-1">Minimum: 0.00000001 FLOW</p>
               </div>
             </div>
             <div>
