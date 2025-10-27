@@ -1,28 +1,43 @@
 /**
  * SplitFundsByScore Action
  * 
- * Forte Action to calculate creator payout shares based on scores
+ * Forte Action to calculate creator payout amounts from percentages
+ * Accepts dynamic splits from backend
  */
 
-import CampaignEscrowV3 from 0x14aca78d100d2001
-
 access(all) struct SplitFundsByScore {
-    access(all) let campaignId: String
-    access(all) let totalAmount: UFix64
+    access(all) let budget: UFix64
+    access(all) let splits: [{Address: UFix64}]
     
-    init(campaignId: String, totalAmount: UFix64) {
-        self.campaignId = campaignId
-        self.totalAmount = totalAmount
+    init(budget: UFix64, splits: [{Address: UFix64}]) {
+        self.budget = budget
+        self.splits = splits
     }
     
-    access(all) fun execute(): {Address: UFix64} {
-        // Calculate proportional shares for each creator
-        // This would read from CampaignEscrowV3.getCampaign() and compute splits
-        let shares: {Address: UFix64} = {}
+    access(all) fun execute(): [{Address: UFix64}] {
+        // Validate: sum of percents must be ≈ 1.0
+        var totalPercent: UFix64 = 0.0
+        for split in self.splits {
+            for amount in split.values {
+                totalPercent = totalPercent + amount
+            }
+        }
         
-        // Placeholder - actual implementation would fetch campaign data
-        // and calculate: creatorShare = (creatorScore / totalScore) * totalAmount
+        let epsilon: UFix64 = 0.00000001
+        assert(totalPercent > (1.0 - epsilon) && totalPercent < (1.0 + epsilon), 
+               message: "Percents must sum to 1.0")
         
-        return shares
+        // Calculate actual amounts
+        var payouts: [{Address: UFix64}] = []
+        
+        for split in self.splits {
+            for addr in split.keys {
+                let percent = split[addr]!
+                let amount = self.budget * percent
+                payouts.append({addr: amount})
+            }
+        }
+        
+        return payouts
     }
 }
