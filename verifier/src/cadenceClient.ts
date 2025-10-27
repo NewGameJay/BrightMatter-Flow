@@ -168,14 +168,12 @@ export async function triggerRefund(campaignId: string) {
  */
 export async function readCampaign(campaignId: string) {
   const cadence = `
-    import CampaignEscrow from 0xCampaignEscrow
+    import CampaignEscrowV2 from 0x14aca78d100d2001
     
-    access(all) fun main(campaignId: String): CampaignEscrow.Campaign? {
-        return CampaignEscrow.getCampaign(id: campaignId)
+    access(all) fun main(campaignId: String): CampaignEscrowV2.Campaign? {
+        return CampaignEscrowV2.getCampaign(id: campaignId)
     }
   `;
   
-  return runScript(cadence, [
-    (arg: any, t: any) => arg(campaignId, t.String)
-  ]);
+  return runScript(cadence, (arg: any, t: any) => [arg(campaignId, t.String)]);
 }

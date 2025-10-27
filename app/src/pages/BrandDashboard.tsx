@@ -8,6 +8,7 @@
 import React, { useState, useEffect } from 'react'
 import { useFCL } from '../config/fcl.tsx'
 import { apiClient } from '../utils/api'
+import * as fcl from '@onflow/fcl'
 
 const BrandDashboard: React.FC = () => {
   const { user, isConnected } = useFCL()
@@ -86,8 +87,7 @@ transaction(
       `.trim()
 
       // Execute the transaction via FCL
-      const { fcl } = await import('../config/fcl.tsx')
-      const txId = await fcl.fcl.mutate({
+      const txId = await fcl.mutate({
         cadence,
         args: (arg: any, t: any) => [
           arg(formData.campaignId, t.String),
@@ -97,14 +97,14 @@ transaction(
           arg(`${deadlineSeconds}.00`, t.UFix64),
           arg(`${formData.payout}.00`, t.UFix64) // deposit same as payout
         ],
-        proposer: fcl.fcl.currentUser().authorization,
-        payer: fcl.fcl.currentUser().authorization,
-        authorizations: [fcl.fcl.currentUser().authorization],
+        proposer: fcl.currentUser().authorization,
+        payer: fcl.currentUser().authorization,
+        authorizations: [fcl.currentUser().authorization],
         limit: 9999
       })
 
       // Wait for transaction to be sealed
-      await fcl.fcl.tx(txId).onceSealed()
+      await fcl.tx(txId).onceSealed()
 
       alert(`Campaign created successfully!\nTransaction ID: ${txId}\nView: https://flowscan.org/transaction/${txId}`)
       
