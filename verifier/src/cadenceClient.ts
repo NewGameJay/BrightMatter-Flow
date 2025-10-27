@@ -8,10 +8,10 @@ import { serverAuthorization } from "./signer";
 /**
  * Run a script (read-only)
  */
-export async function runScript<T = unknown>(cadence: string, args: any[] = []): Promise<T> {
+export async function runScript<T = unknown>(cadence: string, argsFn?: (arg: any, types: any) => any[]): Promise<T> {
   const res = await fcl.query({
     cadence,
-    args: (arg, types) => args.length ? args : [],
+    args: argsFn ?? ((arg, types) => []),
   });
   return res as T;
 }
