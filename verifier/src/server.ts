@@ -383,8 +383,9 @@ transaction {
 });
 
 // Start server
-app.listen(port, '0.0.0.0', () => {
-  console.log(`🚀 BrightMatter Oracle + Forte running on port ${port}`);
+const serverPort = Number(port);
+app.listen(serverPort, '0.0.0.0', () => {
+  console.log(`🚀 BrightMatter Oracle + Forte running on port ${serverPort}`);
   console.log(`📊 Mainnet contracts: 0x14aca78d100d2001`);
   console.log(`🔐 Oracle address: ${getOracleAddress()}`);
   console.log(`🤖 Forte Agent enabled: true`);

@@ -11,9 +11,9 @@ export async function sendTx(cadence: string, args: any[] = []) {
   const txId = await fcl.mutate({
     cadence,
     args: (arg: any, t: any) => args.map((fn) => fn(arg, t)),
-    payer: authz,
-    proposer: authz,
-    authorizations: [authz],
+    payer: authz as any,
+    proposer: authz as any,
+    authorizations: [authz as any],
     limit: 9999,
   });
   
