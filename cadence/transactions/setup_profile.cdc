@@ -3,10 +3,10 @@ import FlowToken from 0x1654653399040a61
 import CreatorProfileV2 from 0x14aca78d100d2001
 
 transaction {
-  prepare(acct: AuthAccount) {
+  prepare(acct: auth(Storage, SaveValue, Capabilities, BorrowValue) &Account) {
     // 1) Ensure FlowToken receiver vault
-    if acct.storage.borrow<&FlowToken.Vault>(from: /storage/flowTokenVault) == nil {
-      acct.storage.save(<- FlowToken.createEmptyVault(vaultType: Type<@FlowToken.Vault>()), to: /storage/flowTokenVault)
+    if acct.borrow<&FlowToken.Vault>(from: /storage/flowTokenVault) == nil {
+      acct.save(<- FlowToken.createEmptyVault(vaultType: Type<@FlowToken.Vault>()), to: /storage/flowTokenVault)
       acct.link<&{FungibleToken.Receiver}>(
         /public/flowTokenReceiver,
         target: /storage/flowTokenVault
@@ -22,8 +22,8 @@ transaction {
     }
 
     // 2) Ensure CreatorProfileV2 profile in storage + public cap
-    if acct.storage.borrow<&CreatorProfileV2.Profile>(from: /storage/CreatorProfile) == nil {
-      acct.storage.save(<- CreatorProfileV2.createEmptyProfile(), to: /storage/CreatorProfile)
+    if acct.borrow<&CreatorProfileV2.Profile>(from: /storage/CreatorProfile) == nil {
+      acct.save(<- CreatorProfileV2.createEmptyProfile(), to: /storage/CreatorProfile)
     }
     acct.unlink(/public/CreatorProfile)
     acct.link<&{CreatorProfileV2.ProfilePublic}>(
