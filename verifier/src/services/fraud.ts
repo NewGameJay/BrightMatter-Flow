@@ -69,8 +69,18 @@ export function mockMetrics(url: string) {
 
 export function computeResonance(metrics: any): number {
   // Simple resonance score calculation
-  const engagementRate = (metrics.likes + metrics.comments * 2 + metrics.shares * 3) / metrics.views;
+  // Handle metrics with or without views
+  const views = metrics.views || metrics.views || 1000; // Default to 1000 if not provided
+  
+  // Calculate engagement
+  const likes = metrics.likes || 0;
+  const comments = metrics.comments || 0;
+  const shares = metrics.shares || 0;
+  
+  const engagementRate = views > 0 ? (likes + comments * 2 + shares * 3) / views : 0;
   const baseScore = Math.min(engagementRate * 1000, 100);
-  return Math.max(1, Math.min(100, baseScore));
+  
+  // Ensure score is between 1 and 100
+  return Math.max(1, Math.min(100, baseScore || 10));
 }
 
