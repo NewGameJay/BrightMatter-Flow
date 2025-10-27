@@ -126,9 +126,25 @@ transaction(
         deadline: ''
       })
       loadCampaigns()
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to create campaign:', error)
-      alert(`Failed to create campaign: ${error}`)
+      
+      // Check for specific error messages
+      let errorMessage = 'Failed to create campaign. Please try again.'
+      
+      if (error?.message) {
+        if (error.message.includes('Campaign ID already exists')) {
+          errorMessage = `Campaign ID "${formData.campaignId}" already exists. Please use a different ID.`
+        } else if (error.message.includes('Payout must be positive')) {
+          errorMessage = 'Payout amount must be greater than 0.'
+        } else if (error.message.includes('No FlowToken vault found')) {
+          errorMessage = 'FlowToken vault not found. Please set up your wallet first.'
+        } else {
+          errorMessage = `Error: ${error.message}`
+        }
+      }
+      
+      alert(errorMessage)
     } finally {
       setIsCreating(false)
     }
