@@ -6,7 +6,7 @@
  */
 
 import React, { useState, useEffect } from 'react'
-import { useFCL } from '../config/fcl'
+import { useFCL } from '../config/fcl.tsx'
 import { apiClient } from '../utils/api'
 
 const CreatorDashboard: React.FC = () => {

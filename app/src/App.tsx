@@ -1,5 +1,5 @@
 import { Routes, Route } from 'react-router-dom'
-import { FCLProvider } from './config/fcl'
+import { FCLProvider } from './config/fcl.tsx'
 import Home from './pages/Home'
 import CreatorDashboard from './pages/CreatorDashboard'
 import BrandDashboard from './pages/BrandDashboard'

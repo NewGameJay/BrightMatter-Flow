@@ -7,7 +7,7 @@
 
 import React from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { useFCL } from '../config/fcl'
+import { useFCL } from '../config/fcl.tsx'
 
 interface LayoutProps {
   children: React.ReactNode

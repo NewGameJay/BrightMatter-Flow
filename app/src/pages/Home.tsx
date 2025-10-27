@@ -7,7 +7,7 @@
 
 import React from 'react'
 import { Link } from 'react-router-dom'
-import { useFCL } from '../config/fcl'
+import { useFCL } from '../config/fcl.tsx'
 
 const Home: React.FC = () => {
   const { isConnected, connect } = useFCL()
