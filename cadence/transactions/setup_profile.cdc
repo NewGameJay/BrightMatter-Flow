@@ -3,19 +3,21 @@ import FlowToken from 0x1654653399040a61
 import CreatorProfileV2 from 0x14aca78d100d2001
 
 transaction {
-  prepare(acct: auth(Storage, SaveValue, Capabilities, BorrowValue) &Account) {
+  prepare(acct: AuthAccount) {
     // 1) Ensure FlowToken receiver vault
     if acct.storage.borrow<&FlowToken.Vault>(from: /storage/flowTokenVault) == nil {
       acct.storage.save(<- FlowToken.createEmptyVault(vaultType: Type<@FlowToken.Vault>()), to: /storage/flowTokenVault)
-      acct.capabilities.storage.issue<&{FungibleToken.Receiver}>(
-        /storage/flowTokenVault
-      ).link(/public/flowTokenReceiver)
+      acct.link<&{FungibleToken.Receiver}>(
+        /public/flowTokenReceiver,
+        target: /storage/flowTokenVault
+      )
     } else {
       // Make sure the public receiver link exists
-      if !acct.capabilities.get<&{FungibleToken.Receiver}>(/public/flowTokenReceiver).check() {
-        acct.capabilities.storage.issue<&{FungibleToken.Receiver}>(
-          /storage/flowTokenVault
-        ).link(/public/flowTokenReceiver)
+      if !acct.getCapability<&{FungibleToken.Receiver}>(/public/flowTokenReceiver).check() {
+        acct.link<&{FungibleToken.Receiver}>(
+          /public/flowTokenReceiver,
+          target: /storage/flowTokenVault
+        )
       }
     }
 
@@ -23,9 +25,10 @@ transaction {
     if acct.storage.borrow<&CreatorProfileV2.Profile>(from: /storage/CreatorProfile) == nil {
       acct.storage.save(<- CreatorProfileV2.createEmptyProfile(), to: /storage/CreatorProfile)
     }
-    acct.capabilities.unlink(/public/CreatorProfile)
-    acct.capabilities.storage.issue<&{CreatorProfileV2.ProfilePublic}>(
-      /storage/CreatorProfile
-    ).link(/public/CreatorProfile)
+    acct.unlink(/public/CreatorProfile)
+    acct.link<&{CreatorProfileV2.ProfilePublic}>(
+      /public/CreatorProfile,
+      target: /storage/CreatorProfile
+    )
   }
 }
