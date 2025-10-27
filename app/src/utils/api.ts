@@ -132,7 +132,7 @@ export const apiClient = {
 
   // Get campaigns for address
   async getCampaigns(address: string): Promise<CampaignsResponse> {
-    const response = await api.get<CampaignsResponse>(`/api/campaigns/${address}`)
+    const response = await api.get<CampaignsResponse>(`/api/campaigns/by-creator/${address}`)
     return response.data
   },
 

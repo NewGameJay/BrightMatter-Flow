@@ -182,11 +182,11 @@ app.get('/api/campaigns/:id', async (req: Request, res: Response) => {
   }
 });
 
-// Get campaigns by address (returns empty for now - campaigns not yet indexed by creator)
-app.get('/api/campaigns/:address', async (req: Request, res: Response) => {
+// Get campaigns by creator address (returns empty for now - campaigns not yet indexed by creator)
+app.get('/api/campaigns/by-creator/:address', async (req: Request, res: Response) => {
   try {
     const { address } = req.params;
-    console.log(`📋 [GET_CAMPAIGNS_BY_ADDRESS] Requested campaigns for address: ${address}`);
+    console.log(`📋 [GET_CAMPAIGNS_BY_CREATOR] Requested campaigns for creator: ${address}`);
     
     // For now, return empty array - this would query on-chain events or a database
     // In a production system, you'd index campaign participation by creator address
@@ -195,7 +195,7 @@ app.get('/api/campaigns/:address', async (req: Request, res: Response) => {
       data: []
     });
   } catch (error: any) {
-    console.error('❌ [GET_CAMPAIGNS_BY_ADDRESS] Error:', error);
+    console.error('❌ [GET_CAMPAIGNS_BY_CREATOR] Error:', error);
     res.status(500).json({ error: error.message || String(error) });
   }
 });
