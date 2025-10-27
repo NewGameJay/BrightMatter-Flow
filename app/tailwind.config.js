@@ -13,7 +13,7 @@ export default {
         'veri-gray': '#1A1A1A',
         'veri-light-gray': '#2A2A2A',
         'veri-border': '#333333',
-        'flow-blue': '#00D4FF',
+        'flow-blue': '#10B981', // Changed to Veri green
         'flow-purple': '#8B5CF6',
         'veri-green': '#10B981',
         'veri-orange': '#F59E0B',

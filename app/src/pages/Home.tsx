@@ -17,7 +17,7 @@ const Home: React.FC = () => {
       {/* Hero Section */}
       <div className="text-center">
         <h1 className="text-4xl md:text-6xl font-display font-bold text-white mb-6">
-          Veri x <span className="text-flow-blue">Flow</span>
+          Veri x <span className="text-veri-green">Flow</span>
         </h1>
         <p className="text-xl text-gray-300 mb-8 max-w-3xl mx-auto">
           The future of creator economy is here. On-chain reputation, automated payouts, 

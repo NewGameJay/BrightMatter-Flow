@@ -27,8 +27,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           <div className="flex justify-between items-center h-16">
             {/* Logo */}
             <Link to="/" className="flex items-center space-x-2">
-              <div className="w-8 h-8 bg-flow-gradient rounded-lg flex items-center justify-center shadow-lg">
-                <span className="text-veri-dark font-bold text-sm">V</span>
+              <div className="w-8 h-8 bg-gradient-to-r from-veri-green to-veri-green/60 rounded-lg flex items-center justify-center shadow-lg">
+                <span className="text-white font-bold text-sm">V</span>
               </div>
               <span className="text-xl font-display font-bold text-white">Veri x Flow</span>
             </Link>
@@ -39,8 +39,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 to="/creator"
                 className={`px-3 py-2 rounded-md text-sm font-medium transition-all ${
                   isActive('/creator')
-                    ? 'bg-flow-blue text-veri-dark shadow-lg'
-                    : 'text-gray-300 hover:text-flow-blue hover:bg-veri-light-gray'
+                    ? 'bg-veri-green text-white shadow-lg'
+                    : 'text-gray-300 hover:text-veri-green hover:bg-veri-light-gray'
                 }`}
               >
                 Creator
@@ -49,8 +49,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 to="/brand"
                 className={`px-3 py-2 rounded-md text-sm font-medium transition-all ${
                   isActive('/brand')
-                    ? 'bg-flow-blue text-veri-dark shadow-lg'
-                    : 'text-gray-300 hover:text-flow-blue hover:bg-veri-light-gray'
+                    ? 'bg-veri-green text-white shadow-lg'
+                    : 'text-gray-300 hover:text-veri-green hover:bg-veri-light-gray'
                 }`}
               >
                 Brand

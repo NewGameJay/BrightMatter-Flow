@@ -286,8 +286,8 @@ const CreatorDashboard: React.FC = () => {
                 key={campaign.id}
                 className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${
                   selectedCampaign?.id === campaign.id 
-                    ? 'border-flow-blue bg-flow-blue bg-opacity-5' 
-                    : 'border-veri-border hover:border-flow-blue hover:border-opacity-50'
+                    ? 'border-veri-green bg-veri-green bg-opacity-5' 
+                    : 'border-veri-border hover:border-veri-green hover:border-opacity-50'
                 }`}
                 onClick={() => setSelectedCampaign(campaign)}
               >
@@ -295,7 +295,7 @@ const CreatorDashboard: React.FC = () => {
                   <div>
                     <h3 className="font-semibold text-white">Campaign {campaign.id}</h3>
                     <div className="mt-2 space-y-1 text-sm text-gray-300">
-                      <p>💰 Payout: <span className="font-medium text-flow-blue">{parseFloat(campaign.payout).toFixed(1)} FLOW</span></p>
+                      <p>💰 Payout: <span className="font-medium text-veri-green">{parseFloat(campaign.payout).toFixed(1)} FLOW</span></p>
                       <p>🎯 Threshold: <span className="font-medium">{parseFloat(campaign.threshold).toFixed(1)} points</span></p>
                       <p>📊 Current Score: <span className="font-medium">{parseFloat(campaign.totalScore).toFixed(1)}</span></p>
                       <p>📅 Deadline: <span className="font-medium">{new Date(parseFloat(campaign.deadline) * 1000).toLocaleString()}</span></p>
