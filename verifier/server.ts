@@ -33,7 +33,52 @@ app.get('/health', (_req: Request, res: Response) => {
   });
 });
 
-// Analyze post and compute score
+// Mock analyze post (returns fixed score of 5.0)
+app.post('/api/analyze-post', async (req: Request, res: Response) => {
+  try {
+    const { postUrl } = req.body;
+    
+    if (!postUrl || typeof postUrl !== 'string') {
+      return res.status(400).json({ error: 'postUrl is required' });
+    }
+    
+    console.log(`📝 [MOCK_ANALYZE] Analyzing post: ${postUrl}`);
+    
+    // Return mock data with 5.0 resonance score
+    const mockResponse = {
+      success: true,
+      data: {
+        score: 5.0,
+        platform: postUrl.includes('youtube') ? 'YouTube' : postUrl.includes('twitter') || postUrl.includes('x.com') ? 'Twitter' : 'Unknown',
+        post_id: postUrl.split('/').pop() || `post_${Date.now()}`,
+        timestamp: Math.floor(Date.now() / 1000),
+        metrics: {
+          likes: 1000,
+          views: 5000,
+          comments: 50,
+          shares: 100,
+          engagement_rate: 8.5,
+          reach: 7500,
+          impressions: 12000
+        },
+        breakdown: {
+          engagement_score: 2.0,
+          reach_score: 2.0,
+          virality_score: 1.0
+        }
+      }
+    };
+    
+    console.log(`✅ [MOCK_ANALYZE] Returning mock score: 5.0`);
+    
+    res.json(mockResponse);
+  } catch (error: any) {
+    console.error('❌ [MOCK_ANALYZE] Error:', error);
+    res.status(500).json({ error: error.message || String(error) });
+  }
+});
+
+// Analyze post and compute score (old endpoint)
 app.post('/api/analyze', async (req: Request, res: Response) => {
   try {
     const { postUrl, campaignId, creatorAddress } = req.body;
