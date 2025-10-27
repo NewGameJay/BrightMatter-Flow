@@ -70,11 +70,11 @@ transaction(
   deposit: UFix64
 ) {
   prepare(signer: auth(Storage, BorrowValue) &Account) {
-    let vaultRef = signer.storage.borrow<auth(Withdraw) &FlowToken.Vault>(
+    let vaultRef = signer.storage.borrow<auth(FungibleToken.Withdraw) &FlowToken.Vault>(
       from: /storage/flowTokenVault
-    ) ?? panic("No FlowToken vault found. Run setup_profile first.")
+    ) ?? panic("No FlowToken vault found for brand. Run the vault/profile setup first.")
     
-    let payment <- vaultRef.withdraw(amount: deposit)
+    let payment <- vaultRef.withdraw(amount: deposit) as! @FlowToken.Vault
     
     let ok = CampaignEscrowV2.createCampaign(
       id: id,
