@@ -51,9 +51,9 @@ export async function updateCreatorScore(
   timestamp: number
 ) {
   const cadence = `
-    import CampaignEscrowV2 from 0x14aca78d100d2001
+    import CampaignEscrowV3 from 0x14aca78d100d2001
     import CreatorProfileV2 from 0x14aca78d100d2001
-
+    
     transaction(
         campaignId: String,
         creator: Address,
@@ -64,7 +64,7 @@ export async function updateCreatorScore(
         prepare(signer: &Account) {
             let signerAddr = signer.address
             
-            let ok = CampaignEscrowV2.updateCreatorScore(
+            let ok = CampaignEscrowV3.updateCreatorScore(
                 campaignId: campaignId,
                 creator: creator,
                 score: score,
@@ -103,11 +103,11 @@ export async function updateCreatorScore(
  */
 export async function triggerPayout(campaignId: string) {
   const cadence = `
-    import CampaignEscrowV2 from 0x14aca78d100d2001
+    import CampaignEscrowV3 from 0x14aca78d100d2001
     
     transaction(campaignId: String) {
         prepare(signer: &Account) {
-            let success = CampaignEscrowV2.triggerPayout(
+            let success = CampaignEscrowV3.triggerPayout(
                 campaignId: campaignId,
                 signer: signer.address
             )
@@ -132,11 +132,11 @@ export async function triggerPayout(campaignId: string) {
  */
 export async function triggerRefund(campaignId: string) {
   const cadence = `
-    import CampaignEscrowV2 from 0x14aca78d100d2001
+    import CampaignEscrowV3 from 0x14aca78d100d2001
     
     transaction(campaignId: String) {
         prepare(signer: &Account) {
-            let success = CampaignEscrowV2.triggerRefund(
+            let success = CampaignEscrowV3.triggerRefund(
                 campaignId: campaignId,
                 signer: signer.address
             )
@@ -161,10 +161,10 @@ export async function triggerRefund(campaignId: string) {
  */
 export async function readCampaign(campaignId: string) {
   const cadence = `
-    import CampaignEscrowV2 from 0x14aca78d100d2001
+    import CampaignEscrowV3 from 0x14aca78d100d2001
     
-    access(all) fun main(campaignId: String): CampaignEscrowV2.Campaign? {
-        return CampaignEscrowV2.getCampaign(id: campaignId)
+    access(all) fun main(campaignId: String): CampaignEscrowV3.Campaign? {
+        return CampaignEscrowV3.getCampaign(id: campaignId)
     }
   `;
   
@@ -176,10 +176,10 @@ export async function readCampaign(campaignId: string) {
  */
 export async function getCampaignsByCreator(creatorAddress: string) {
   const cadence = `
-    import CampaignEscrowV2 from 0x14aca78d100d2001
+    import CampaignEscrowV3 from 0x14aca78d100d2001
     
-    access(all) fun main(creator: Address): [CampaignEscrowV2.Campaign] {
-        return CampaignEscrowV2.getCampaignsByCreator(creator: creator)
+    access(all) fun main(creator: Address): [CampaignEscrowV3.Campaign] {
+        return CampaignEscrowV3.getCampaignsByCreator(creator: creator)
     }
   `;
   

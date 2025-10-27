@@ -26,7 +26,7 @@ app.get('/health', (_req: Request, res: Response) => {
     service: 'brightmatter-oracle',
     network: 'mainnet',
     contracts: {
-      CampaignEscrowV2: '0x14aca78d100d2001',
+      CampaignEscrowV3: '0x14aca78d100d2001',
       CreatorProfileV2: '0x14aca78d100d2001'
     },
     oracle: process.env.FLOW_ADDRESS || '14aca78d100d2001'

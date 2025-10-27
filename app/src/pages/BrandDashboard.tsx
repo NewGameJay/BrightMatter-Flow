@@ -59,7 +59,7 @@ const BrandDashboard: React.FC = () => {
       const cadence = `
 import FungibleToken from 0xf233dcee88fe0abe
 import FlowToken from 0x1654653399040a61
-import CampaignEscrowV2 from 0x14aca78d100d2001
+import CampaignEscrowV3 from 0x14aca78d100d2001
 
 transaction(
   id: String,
@@ -76,7 +76,7 @@ transaction(
     
     let payment <- vaultRef.withdraw(amount: deposit) as! @FlowToken.Vault
     
-    let ok = CampaignEscrowV2.createCampaign(
+    let ok = CampaignEscrowV3.createCampaign(
       id: id,
       creator: creator,
       threshold: threshold,

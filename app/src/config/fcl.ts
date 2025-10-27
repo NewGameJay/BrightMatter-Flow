@@ -25,7 +25,7 @@ export { fcl }
 // Contract addresses (production mainnet)
 export const CONTRACTS = {
   CreatorProfileV2: '0x14aca78d100d2001',
-  CampaignEscrowV2: '0x14aca78d100d2001',
+  CampaignEscrowV3: '0x14aca78d100d2001',
   FungibleToken: '0xf233dcee88fe0abe',
   FlowToken: '0x1654653399040a61'
 } as const
