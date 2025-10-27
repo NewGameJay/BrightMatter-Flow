@@ -9,6 +9,7 @@ import React, { useState, useEffect } from 'react'
 import { useFCL } from '../config/fcl.tsx'
 import { apiClient } from '../utils/api'
 import * as fcl from '@onflow/fcl'
+import { createCampaign, type CampaignType } from '../lib/api/campaigns'
 
 const BrandDashboard: React.FC = () => {
   const { user, isConnected } = useFCL()
@@ -17,12 +18,15 @@ const BrandDashboard: React.FC = () => {
   const [showCreateForm, setShowCreateForm] = useState(false)
 
   // Campaign form state
+  const [campaignType, setCampaignType] = useState<CampaignType>('open')
   const [formData, setFormData] = useState({
     campaignId: '',
     creatorAddress: '',
     threshold: '',
     payout: '',
-    deadline: ''
+    deadline: '',
+    windowStart: '',
+    minEngagementRate: '0.02'
   })
 
   useEffect(() => {
@@ -47,13 +51,37 @@ const BrandDashboard: React.FC = () => {
     }
   }
 
-  const createCampaign = async (e: React.FormEvent) => {
+  const handleCreateCampaign = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsCreating(true)
     
     try {
-      // Build the Cadence transaction for campaign creation
-      const deadlineTimestamp = Date.now() + (parseFloat(formData.deadline) * 3600 * 1000) // hours to milliseconds
+      if (campaignType === 'open') {
+        // Use new API for open campaigns
+        const deadlineDate = new Date(Date.now() + (parseFloat(formData.deadline) * 3600 * 1000))
+        const windowStartDate = formData.windowStart 
+          ? new Date(formData.windowStart)
+          : new Date()
+        
+        const result = await createCampaign({
+          type: 'open',
+          deadline: deadlineDate.toISOString(),
+          budgetFlow: formData.payout,
+          criteria: {
+            windowStart: windowStartDate.toISOString(),
+            minEngagementRate: parseFloat(formData.minEngagementRate),
+            platformAllowlist: ['twitter', 'youtube', 'tiktok']
+          }
+        })
+        
+        alert(`Open campaign created!\nCampaign ID: ${result.campaignId}`)
+        setShowCreateForm(false)
+        loadCampaigns()
+        return
+      }
+      
+      // Curated campaign - use existing on-chain flow
+      const deadlineTimestamp = Date.now() + (parseFloat(formData.deadline) * 3600 * 1000)
       const deadlineSeconds = Math.floor(deadlineTimestamp / 1000)
       
       const cadence = `
@@ -171,33 +199,86 @@ transaction(
       {/* Create Campaign Form */}
       {showCreateForm && (
         <div className="card">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Create New Campaign</h2>
-          <form onSubmit={createCampaign} className="space-y-4">
+          <h2 className="text-xl font-semibold text-white mb-4">Create New Campaign</h2>
+          <form onSubmit={handleCreateCampaign} className="space-y-4">
+            {/* Campaign Type */}
             <div>
-              <label className="label">Campaign ID</label>
+              <label className="label">Campaign Type</label>
+              <div className="flex gap-4">
+                <label className="flex items-center">
+                  <input
+                    type="radio"
+                    name="campaignType"
+                    value="open"
+                    checked={campaignType === 'open'}
+                    onChange={(e) => setCampaignType(e.target.value as CampaignType)}
+                    className="mr-2"
+                  />
+                  <span className="text-white">Open (Multiple creators)</span>
+                </label>
+                <label className="flex items-center">
+                  <input
+                    type="radio"
+                    name="campaignType"
+                    value="curated"
+                    checked={campaignType === 'curated'}
+                    onChange={(e) => setCampaignType(e.target.value as CampaignType)}
+                    className="mr-2"
+                  />
+                  <span className="text-white">Curated (Single creator)</span>
+                </label>
+              </div>
+            </div>
+
+            {campaignType === 'curated' && (
+              <>
+                <div>
+                  <label className="label">Campaign ID</label>
+                  <input
+                    type="text"
+                    name="campaignId"
+                    value={formData.campaignId}
+                    onChange={handleInputChange}
+                    placeholder="campaign-001"
+                    className="input"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="label">Creator Address</label>
+                  <input
+                    type="text"
+                    name="creatorAddress"
+                    value={formData.creatorAddress}
+                    onChange={handleInputChange}
+                    placeholder="0x1234567890abcdef"
+                    className="input"
+                    required
+                  />
+                </div>
+              </>
+            )}
+            <div>
+              <label className="label">Budget (FLOW)</label>
               <input
-                type="text"
-                name="campaignId"
-                value={formData.campaignId}
+                type="number"
+                name="payout"
+                value={formData.payout}
                 onChange={handleInputChange}
-                placeholder="campaign-001"
+                placeholder={campaignType === 'open' ? '100' : '10'}
+                min="0.00000001"
+                step="0.1"
                 className="input"
                 required
               />
+              <p className="text-sm text-gray-400 mt-1">
+                {campaignType === 'open' 
+                  ? 'Total budget split among creators based on resonance scores'
+                  : 'Payout for single creator'}
+              </p>
             </div>
-            <div>
-              <label className="label">Creator Address</label>
-              <input
-                type="text"
-                name="creatorAddress"
-                value={formData.creatorAddress}
-                onChange={handleInputChange}
-                placeholder="0x1234567890abcdef"
-                className="input"
-                required
-              />
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+            {campaignType === 'curated' && (
               <div>
                 <label className="label">VeriScore Threshold</label>
                 <input
@@ -212,20 +293,39 @@ transaction(
                   required
                 />
               </div>
-              <div>
-                <label className="label">Payout Amount (USDF)</label>
-                <input
-                  type="number"
-                  name="payout"
-                  value={formData.payout}
-                  onChange={handleInputChange}
-                  placeholder="100"
-                  min="0"
-                  className="input"
-                  required
-                />
-              </div>
-            </div>
+            )}
+
+            {campaignType === 'open' && (
+              <>
+                <div>
+                  <label className="label">Window Start (optional)</label>
+                  <input
+                    type="datetime-local"
+                    name="windowStart"
+                    value={formData.windowStart}
+                    onChange={handleInputChange}
+                    className="input"
+                  />
+                  <p className="text-sm text-gray-400 mt-1">Content posted before this time won't count</p>
+                </div>
+                <div>
+                  <label className="label">Minimum Engagement Rate</label>
+                  <input
+                    type="number"
+                    name="minEngagementRate"
+                    value={formData.minEngagementRate}
+                    onChange={handleInputChange}
+                    placeholder="0.02"
+                    min="0"
+                    max="1"
+                    step="0.01"
+                    className="input"
+                  />
+                  <p className="text-sm text-gray-400 mt-1">Posts below this threshold will be rejected</p>
+                </div>
+              </>
+            )}
+
             <div>
               <label className="label">Deadline (hours from now)</label>
               <input
@@ -233,13 +333,17 @@ transaction(
                 name="deadline"
                 value={formData.deadline}
                 onChange={handleInputChange}
-                placeholder="720"
+                placeholder={campaignType === 'open' ? '168' : '24'}
                 min="1"
                 step="1"
                 className="input"
                 required
               />
-              <p className="text-sm text-gray-500 mt-1">Minimum: 1 hour, recommended: 24+ hours</p>
+              <p className="text-sm text-gray-400 mt-1">
+                {campaignType === 'open'
+                  ? 'Recommended: 7+ days for open campaigns'
+                  : 'Minimum: 1 hour, recommended: 24+ hours'}
+              </p>
             </div>
             <div className="flex space-x-4">
               <button
