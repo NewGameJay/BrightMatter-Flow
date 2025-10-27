@@ -200,6 +200,29 @@ app.get('/api/campaigns/:address', async (req: Request, res: Response) => {
   }
 });
 
+// Get creator profile
+app.get('/api/profile/:address', async (req: Request, res: Response) => {
+  try {
+    const { address } = req.params;
+    console.log(`📋 [GET_PROFILE] Requested profile for address: ${address}`);
+    
+    // For now, return a mock profile structure
+    // In production, you'd query the on-chain CreatorProfileV2 resource
+    res.json({
+      success: true,
+      data: {
+        address,
+        veriScore: 0.0,
+        totalCampaigns: 0,
+        lastUpdated: Date.now() / 1000
+      }
+    });
+  } catch (error: any) {
+    console.error('❌ [GET_PROFILE] Error:', error);
+    res.status(500).json({ error: error.message || String(error) });
+  }
+});
+
 // Get setup profile transaction for frontend
 app.get('/api/setup-profile', (_req: Request, res: Response) => {
   const setupTx = `

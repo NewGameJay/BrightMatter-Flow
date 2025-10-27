@@ -47,11 +47,14 @@ const CreatorDashboard: React.FC = () => {
     
     try {
       const response = await apiClient.getCampaigns(user.addr)
-      if (response.success) {
-        setCampaigns(response.data)
+      if (response.success && response.data) {
+        setCampaigns(Array.isArray(response.data) ? response.data : [])
+      } else {
+        setCampaigns([])
       }
     } catch (error) {
       console.error('Failed to load campaigns:', error)
+      setCampaigns([])
     }
   }
 
@@ -203,7 +206,7 @@ const CreatorDashboard: React.FC = () => {
       {/* Campaigns */}
       <div className="card">
         <h2 className="text-xl font-semibold text-gray-900 mb-4">Your Campaigns</h2>
-        {campaigns.length > 0 ? (
+        {campaigns && campaigns.length > 0 ? (
           <div className="space-y-4">
             {campaigns.map((campaign) => (
               <div key={campaign.id} className="p-4 border border-gray-200 rounded-lg">
