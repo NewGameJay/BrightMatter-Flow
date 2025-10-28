@@ -6,6 +6,7 @@
 
 export interface Campaign {
   id: string;
+  title?: string;
   type: "open" | "curated";
   deadline: string; // ISO string
   budgetFlow: string; // UFix64 string

@@ -386,22 +386,34 @@ const CreatorDashboard: React.FC = () => {
                 <div key={campaign.id} className="bg-veri-gray p-6 rounded-lg border border-veri-border">
                   <div className="flex justify-between items-start mb-4">
                     <div>
-                      <h3 className="text-lg font-semibold text-white">{campaign.id}</h3>
-                      <p className="text-sm text-gray-400 mt-1">Open Campaign</p>
+                      <h3 className="text-lg font-semibold text-white">{campaign.title || campaign.id}</h3>
+                      <p className="text-sm text-gray-400 mt-1">ID: {campaign.id}</p>
                     </div>
                     <div className="px-3 py-1 bg-veri-green/20 text-veri-green rounded-full text-sm">
                       Open to Join
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-4 mb-4 text-sm">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4 text-sm">
                     <div>
-                      <span className="text-gray-400">Budget:</span>
+                      <span className="text-gray-400">Total Payout:</span>
                       <div className="text-lg font-bold text-veri-green">{campaign.budgetFlow} FLOW</div>
                     </div>
                     <div>
                       <span className="text-gray-400">Deadline:</span>
                       <div className="font-medium text-white">
                         {new Date(campaign.deadline).toLocaleDateString()}
+                      </div>
+                    </div>
+                    <div>
+                      <span className="text-gray-400">Min Threshold:</span>
+                      <div className="font-medium text-white">
+                        {campaign.criteria?.minResonanceScore || 'Any'}
+                      </div>
+                    </div>
+                    <div>
+                      <span className="text-gray-400">Payout Type:</span>
+                      <div className="font-medium text-veri-orange">
+                        Proportional
                       </div>
                     </div>
                   </div>

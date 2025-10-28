@@ -368,9 +368,9 @@ app.post('/api/campaigns/:id/refund', async (req: Request, res: Response) => {
 // Create campaign (supports both open and curated)
 app.post('/api/campaigns', async (req: Request, res: Response) => {
   try {
-    const { type, deadline, budgetFlow, criteria } = req.body;
+    const { type, deadline, budgetFlow, criteria, id, title } = req.body;
     
-    console.log(`📋 [CREATE_CAMPAIGN] Creating ${type} campaign`, { deadline, budgetFlow, criteria });
+    console.log(`📋 [CREATE_CAMPAIGN] Creating ${type} campaign`, { id, title, deadline, budgetFlow, criteria });
     
     if (!type || !deadline || !budgetFlow || !criteria) {
       return res.status(400).json({ error: 'Missing required fields: type, deadline, budgetFlow, criteria' });
@@ -380,11 +380,13 @@ app.post('/api/campaigns', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Type must be "open" or "curated"' });
     }
     
-    const campaignId = `campaign-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    // Use provided ID or generate new one
+    const campaignId = id || `campaign-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     const now = new Date().toISOString();
     
     const campaign: Campaign = {
       id: campaignId,
+      title: title || campaignId,
       type,
       deadline,
       budgetFlow,
