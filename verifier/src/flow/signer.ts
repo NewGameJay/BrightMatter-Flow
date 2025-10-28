@@ -40,6 +40,7 @@ export const authz = async (account: any = {}) => {
     tempId: `${addr}-${keyId}`,
     addr,
     keyId,
+    sequenceNum: 0,
     signingFunction: async ({ message }: { message: string }) => ({
       addr,
       keyId,
