@@ -1,58 +1,26 @@
-import { useState, useEffect, createContext, useContext, ReactNode } from 'react'
 import * as fcl from '@onflow/fcl'
+import { useState, useEffect } from 'react'
 
-// FCL configuration
 fcl.config({
-  'accessNode.api': 'https://rest-mainnet.onflow.org',
+  'accessNode.api': import.meta.env.VITE_ACCESS_NODE || 'https://mainnet.onflow.org',
   'flow.network': 'mainnet',
-  'discovery.wallet': 'https://fcl-discovery.onflow.org/authn',
   'app.detail.title': 'BrightMatter',
-  'app.detail.icon': 'https://brightmatter-frontend.fly.dev/favicon.ico',
+  'app.detail.icon': 'https://placekitten.com/g/200/200',
+  'discovery.wallet': 'https://fcl-discovery.onflow.org/authn',
+  '0xProfile': import.meta.env.VITE_PROFILE_CONTRACT,
+  'walletconnect.projectId': import.meta.env.VITE_WALLETCONNECT_PROJECT_ID || ''
 })
 
-interface User {
-  addr: string | null
-  loggedIn: boolean
-}
-
-interface FCLContextType {
-  user: User
-  isConnected: boolean
-  connect: () => Promise<void>
-  disconnect: () => void
-}
-
-const FCLContext = createContext<FCLContextType | undefined>(undefined)
-
-export const useFCL = () => {
-  const context = useContext(FCLContext)
-  if (!context) {
-    throw new Error('useFCL must be used within FCLProvider')
-  }
-  return context
-}
-
-export const FCLProvider = ({ children }: { children: ReactNode }) => {
-  const [user, setUser] = useState<User>({ addr: null, loggedIn: false })
+export function useFCL() {
+  const [user, setUser] = useState<any>(null)
+  const [isConnected, setIsConnected] = useState(false)
 
   useEffect(() => {
-    fcl.currentUser.subscribe(setUser)
+    fcl.currentUser.subscribe(user => {
+      setUser(user)
+      setIsConnected(user?.loggedIn || false)
+    })
   }, [])
 
-  const connect = async () => {
-    await fcl.authenticate()
-  }
-
-  const disconnect = () => {
-    fcl.unauthenticate()
-  }
-
-  return (
-    <FCLContext.Provider value={{ user, isConnected: user.loggedIn, connect, disconnect }}>
-      {children}
-    </FCLContext.Provider>
-  )
+  return { user, isConnected, connect: fcl.authenticate, disconnect: fcl.unauthenticate }
 }
-
-export { fcl }
-
