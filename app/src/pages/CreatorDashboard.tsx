@@ -179,7 +179,7 @@ const CreatorDashboard: React.FC = () => {
     
     setIsAnalyzing(true)
     try {
-      // Step 1: Get score from backend
+      // Submit to backend - oracle will analyze, sign, and execute transaction
       const apiUrl = (window as any).__API_URL__ || 'https://brightmatter-oracle.fly.dev'
       const analysisResponse = await fetch(`${apiUrl}/api/analyze`, {
         method: 'POST',
@@ -197,66 +197,9 @@ const CreatorDashboard: React.FC = () => {
         throw new Error(analysisData.error || 'Analysis failed')
       }
       
-      const { score, postId, timestamp } = analysisData
+      const { score, txId } = analysisData
       
-      console.log('📊 Analysis result:', { score, postId, timestamp })
-      
-      // Step 2: Submit to chain via FCL transaction
-      const cadence = `
-        import CampaignEscrowV3 from 0x14aca78d100d2001
-        import CreatorProfileV2 from 0x14aca78d100d2001
-        
-        transaction(
-          campaignId: String,
-          postId: String,
-          score: UFix64,
-          timestamp: UFix64
-        ) {
-          prepare(signer: &Account) {
-            let signerAddr = signer.address
-            
-            // Update campaign score
-            let ok = CampaignEscrowV3.updateCreatorScore(
-              campaignId: campaignId,
-              creator: signerAddr,
-              score: score,
-              signer: signerAddr
-            )
-            assert(ok, message: "updateCreatorScore failed")
-            
-            // Add proof to creator profile
-            CreatorProfileV2.addProofFor(
-              creator: signerAddr,
-              postId: postId,
-              score: score,
-              timestamp: timestamp,
-              campaignId: campaignId,
-              signer: signerAddr
-            )
-          }
-        }
-      `
-      
-      console.log('🔗 Submitting to chain...')
-      
-      const txId = await fcl.mutate({
-        cadence,
-        args: (arg: any, t: any) => [
-          arg(selectedCampaign.id, t.String),
-          arg(postId, t.String),
-          arg(score, t.UFix64),
-          arg(timestamp, t.UFix64)
-        ],
-        proposer: fcl.currentUser().authorization,
-        payer: fcl.currentUser().authorization,
-        authorizations: [fcl.currentUser().authorization],
-        limit: 9999
-      })
-      
-      console.log('⏳ Waiting for transaction to seal...')
-      await fcl.tx(txId).onceSealed()
-      
-      console.log('✅ Transaction sealed:', txId)
+      console.log('✅ Content submitted successfully!', analysisData)
       
       setSuccessMessage(`🎉 Content submitted successfully!\nScore: ${score}\nTransaction: ${txId}`)
       setShowSuccess(true)
@@ -275,12 +218,12 @@ const CreatorDashboard: React.FC = () => {
       console.error('Failed to analyze post:', error)
       
       // If profile doesn't exist, try to set it up
-      if (error.message?.includes('profile not found')) {
+      if (error.message?.includes('profile not found') || error.message?.includes('Creator profile not found')) {
         if (confirm('Your profile is not set up. Would you like to set it up now?')) {
           await setupProfile()
         }
       } else {
-        alert('Failed to submit content. Please try again.')
+        alert(`Failed to submit content: ${error.message || String(error)}`)
       }
     } finally {
       setIsAnalyzing(false)

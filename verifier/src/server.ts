@@ -63,7 +63,7 @@ app.post('/api/analyze-post', async (req: Request, res: Response) => {
   }
 });
 
-// Analyze post and return score (frontend will submit to chain)
+// Submit post and record on-chain (oracle-signed)
 app.post('/api/analyze', async (req: Request, res: Response) => {
   try {
     const { postUrl, campaignId, creatorAddress } = req.body;
@@ -81,13 +81,62 @@ app.post('/api/analyze', async (req: Request, res: Response) => {
     
     console.log(`📊 [ANALYZE] Score: ${score.toFixed(1)}`, { metrics });
     
-    // Return score and metrics - frontend will submit to chain via FCL
+    // Oracle signs and executes transaction to update score on-chain
+    const cadence = `
+      import CampaignEscrowV3 from 0x14aca78d100d2001
+      import CreatorProfileV2 from 0x14aca78d100d2001
+      
+      transaction(
+        campaignId: String,
+        creator: Address,
+        postId: String,
+        score: UFix64,
+        timestamp: UFix64
+      ) {
+        prepare(signer: &Account) {
+          let signerAddr = signer.address
+          
+          // Update campaign score (oracle-signed)
+          let ok = CampaignEscrowV3.updateCreatorScore(
+            campaignId: campaignId,
+            creator: creator,
+            score: score,
+            signer: signerAddr
+          )
+          assert(ok, message: "updateCreatorScore failed")
+          
+          // Add proof to creator profile (oracle-signed)
+          CreatorProfileV2.addProofFor(
+            creator: creator,
+            postId: postId,
+            score: score,
+            timestamp: timestamp,
+            campaignId: campaignId,
+            signer: signerAddr
+          )
+        }
+      }
+    `;
+    
+    console.log('🔗 Oracle executing transaction...');
+    
+    // Execute oracle-signed transaction using sendTx from client.ts
+    const { txId } = await sendTx(cadence, [
+      (arg: any, t: any) => arg(campaignId, t.String),
+      (arg: any, t: any) => arg(fcl.withPrefix(creatorAddress), t.Address),
+      (arg: any, t: any) => arg(metrics.postId, t.String),
+      (arg: any, t: any) => arg(score.toFixed(1), t.UFix64),
+      (arg: any, t: any) => arg(timestamp.toFixed(1), t.UFix64)
+    ]);
+    
+    console.log('✅ Oracle transaction sealed:', txId);
+    
     res.json({
       success: true,
       score: score.toFixed(1),
       metrics,
-      postId: metrics.postId,
-      timestamp: timestamp.toFixed(1)
+      txId,
+      flowscanLink: `https://flowscan.org/transaction/${txId}`
     });
   } catch (error: any) {
     console.error('❌ [ANALYZE] Error:', error);
