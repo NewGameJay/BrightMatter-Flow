@@ -1,26 +1,78 @@
-import * as fcl from '@onflow/fcl'
-import { useState, useEffect } from 'react'
+/**
+ * FCL Provider Component
+ * 
+ * Provides Flow Client Library context to the app
+ * Handles wallet connection state and user authentication
+ */
 
-fcl.config({
-  'accessNode.api': import.meta.env.VITE_ACCESS_NODE || 'https://mainnet.onflow.org',
-  'flow.network': 'mainnet',
-  'app.detail.title': 'BrightMatter',
-  'app.detail.icon': 'https://placekitten.com/g/200/200',
-  'discovery.wallet': 'https://fcl-discovery.onflow.org/authn',
-  '0xProfile': import.meta.env.VITE_PROFILE_CONTRACT,
-  'walletconnect.projectId': import.meta.env.VITE_WALLETCONNECT_PROJECT_ID || ''
-})
+import React, { createContext, useContext, useEffect, useState } from 'react'
+import { fcl } from './fcl'
+import { FlowUser } from '@onflow/fcl/types'
 
-export function useFCL() {
-  const [user, setUser] = useState<any>(null)
-  const [isConnected, setIsConnected] = useState(false)
+interface FCLContextType {
+  user: FlowUser | null
+  isConnected: boolean
+  connect: () => Promise<void>
+  disconnect: () => Promise<void>
+  hasProfile: boolean
+  setHasProfile: (has: boolean) => void
+}
+
+const FCLContext = createContext<FCLContextType | undefined>(undefined)
+
+export const useFCL = () => {
+  const context = useContext(FCLContext)
+  if (!context) {
+    throw new Error('useFCL must be used within an FCLProvider')
+  }
+  return context
+}
+
+interface FCLProviderProps {
+  children: React.ReactNode
+}
+
+export const FCLProvider: React.FC<FCLProviderProps> = ({ children }) => {
+  const [user, setUser] = useState<FlowUser | null>(null)
+  const [hasProfile, setHasProfile] = useState<boolean>(false)
 
   useEffect(() => {
-    fcl.currentUser.subscribe(user => {
-      setUser(user)
-      setIsConnected(user?.loggedIn || false)
-    })
+    // Subscribe to user changes
+    fcl.currentUser.subscribe(setUser)
   }, [])
 
-  return { user, isConnected, connect: fcl.authenticate, disconnect: fcl.unauthenticate }
+  const connect = async () => {
+    try {
+      await fcl.authenticate()
+    } catch (error) {
+      console.error('Failed to connect wallet:', error)
+    }
+  }
+
+  const disconnect = async () => {
+    try {
+      await fcl.unauthenticate()
+      setHasProfile(false)
+    } catch (error) {
+      console.error('Failed to disconnect wallet:', error)
+    }
+  }
+
+  const isConnected = !!user?.addr
+
+  const value: FCLContextType = {
+    user,
+    isConnected,
+    connect,
+    disconnect,
+    hasProfile,
+    setHasProfile
+  }
+
+  return (
+    <FCLContext.Provider value={value}>
+      {children}
+    </FCLContext.Provider>
+  )
 }
+

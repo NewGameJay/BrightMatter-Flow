@@ -1,37 +1,57 @@
 /**
  * Creator Dashboard
  * 
- * Dashboard for creators to discover campaigns, join open campaigns,
- * submit content, and view leaderboards
+ * Main dashboard for creators to manage their profiles and campaigns
+ * Includes post analysis, score management, and campaign tracking
  */
 
 import React, { useState, useEffect } from 'react'
-import { getCampaign, getLeaderboard, joinCampaign, submitPost, type Campaign, type LeaderboardEntry } from '../lib/api/campaigns'
+import { useFCL } from '../config/fcl.tsx'
+import { apiClient } from '../utils/api'
+import * as fcl from '@onflow/fcl'
 
 const CreatorDashboard: React.FC = () => {
-  const [campaigns, setCampaigns] = useState<Campaign[]>([])
-  const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null)
-  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([])
-  const [showJoinForm, setShowJoinForm] = useState(false)
-  const [showSubmitForm, setShowSubmitForm] = useState(false)
-  const [isJoining, setIsJoining] = useState(false)
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  
+  const { user, isConnected } = useFCL()
   const [postUrl, setPostUrl] = useState('')
-  const [message, setMessage] = useState({ type: '' as 'success' | 'error' | '', text: '' })
+  const [selectedCampaign, setSelectedCampaign] = useState<any>(null)
+  const [isAnalyzing, setIsAnalyzing] = useState(false)
+  const [isSettingUp, setIsSettingUp] = useState(false)
+  const [profile, setProfile] = useState<any>(null)
+  const [campaigns, setCampaigns] = useState<any[]>([])
+  const [showSuccess, setShowSuccess] = useState(false)
+  const [successMessage, setSuccessMessage] = useState('')
+  const [isClaiming, setIsClaiming] = useState(false)
+  const [claimingCampaignId, setClaimingCampaignId] = useState<string | null>(null)
 
   useEffect(() => {
-    loadCampaigns()
-  }, [])
+    if (isConnected && user?.addr) {
+      loadProfile()
+      loadCampaigns()
+    }
+  }, [isConnected, user])
+
+  const loadProfile = async () => {
+    if (!user?.addr) return
+    
+    try {
+      const response = await apiClient.getProfile(user.addr)
+      if (response.success) {
+        setProfile(response.data)
+      }
+    } catch (error) {
+      console.error('Failed to load profile:', error)
+    }
+  }
 
   const loadCampaigns = async () => {
+    if (!user?.addr) return
+    
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'https://brightmatter-oracle.fly.dev'}/api/campaigns`)
-      const data = await response.json()
-      if (data.success && data.campaigns) {
-        // Filter to only show open campaigns
-        const openCampaigns = data.campaigns.filter((c: Campaign) => c.type === 'open')
-        setCampaigns(openCampaigns)
+      const response = await apiClient.getCampaigns(user.addr)
+      if (response.success && response.data) {
+        setCampaigns(Array.isArray(response.data) ? response.data : [])
+      } else {
+        setCampaigns([])
       }
     } catch (error) {
       console.error('Failed to load campaigns:', error)
@@ -39,337 +59,350 @@ const CreatorDashboard: React.FC = () => {
     }
   }
 
-  const handleSelectCampaign = async (campaignId: string) => {
-    try {
-      const response = await getCampaign(campaignId)
-      if (response.success && response.campaign) {
-        setSelectedCampaign(response.campaign)
-        
-        // Load leaderboard
-        const leaderboardResponse = await getLeaderboard(campaignId)
-        if (leaderboardResponse.success && leaderboardResponse.leaderboard) {
-          setLeaderboard(leaderboardResponse.leaderboard)
-        }
-      }
-    } catch (error) {
-      console.error('Failed to load campaign:', error)
-      showMessage('error', 'Failed to load campaign details')
-    }
-  }
-
-  const handleJoinCampaign = async (campaignId: string) => {
-    const creatorAddr = '0x0000000000000000000000000000000000000000' // TODO: Get from wallet
-    const signature = '' // TODO: Add wallet signature
+  const setupProfile = async () => {
+    if (!user?.addr) return
     
-    setIsJoining(true)
+    setIsSettingUp(true)
     try {
-      await joinCampaign(campaignId, creatorAddr, signature)
-      showMessage('success', 'Successfully joined campaign!')
-      setShowJoinForm(false)
-      handleSelectCampaign(campaignId)
-    } catch (error: any) {
-      console.error('Failed to join campaign:', error)
-      showMessage('error', error?.message || 'Failed to join campaign')
-    } finally {
-      setIsJoining(false)
-    }
-  }
-
-  const handleSubmitPost = async () => {
-    if (!selectedCampaign || !postUrl) return
-    
-    setIsSubmitting(true)
-    try {
-      const creatorAddr = '0x0000000000000000000000000000000000000000' // TODO: Get from wallet
+      // Get setup transaction from backend
+      const apiUrl = (window as any).__API_URL__ || 'https://brightmatter-oracle.fly.dev'
+      const response = await fetch(`${apiUrl}/api/setup-profile`)
+      const data = await response.json()
       
-      // Generate a unique post ID from the URL
-      const postId = postUrl.split('/').pop() || Date.now().toString()
-      
-      const result = await submitPost(selectedCampaign.id, {
-        creatorAddr,
-        platform: 'twitter', // TODO: Auto-detect platform
-        url: postUrl,
-        postId,
-        timestamp: new Date().toISOString(),
-        metrics: {}
+      // Execute the setup transaction (user signs)
+      const txId = await fcl.mutate({
+        cadence: data.cadence,
+        args: (arg: any, t: any) => [],
+        limit: 9999,
       })
       
-      const score = result.resonanceScore || '0.00'
-      showMessage('success', `Post submitted! Resonance score: ${score}`)
-      setPostUrl('')
-      setShowSubmitForm(false)
+      await fcl.tx(txId).onceSealed()
       
-      // Refresh leaderboard
-      if (selectedCampaign) {
-        const leaderboardResponse = await getLeaderboard(selectedCampaign.id)
-        if (leaderboardResponse.success && leaderboardResponse.leaderboard) {
-          setLeaderboard(leaderboardResponse.leaderboard)
-        }
-      }
-    } catch (error: any) {
-      console.error('Failed to submit post:', error)
-      showMessage('error', error?.message || 'Failed to submit post')
+      console.log('Profile setup complete:', txId)
+      await loadProfile()
+    } catch (error) {
+      console.error('Failed to setup profile:', error)
+      alert('Failed to setup profile. Please try again.')
     } finally {
-      setIsSubmitting(false)
+      setIsSettingUp(false)
     }
   }
 
-  const showMessage = (type: 'success' | 'error', text: string) => {
-    setMessage({ type, text })
-    setTimeout(() => setMessage({ type: '', text: '' }), 5000)
+  const analyzePost = async () => {
+    if (!postUrl.trim()) {
+      alert('Please enter a post URL')
+      return
+    }
+    
+    if (!selectedCampaign) {
+      alert('Please select a campaign')
+      return
+    }
+    
+    if (!user?.addr) {
+      alert('Please connect your wallet')
+      return
+    }
+    
+    setIsAnalyzing(true)
+    try {
+      // Step 1: Analyze post (gets mock 5.0 score)
+      const analysisResponse = await apiClient.analyzePost(postUrl)
+      if (!analysisResponse.success) {
+        throw new Error('Analysis failed')
+      }
+      
+      // Step 2: Record score on-chain via /api/analyze
+      const apiUrl = (window as any).__API_URL__ || 'https://brightmatter-oracle.fly.dev'
+      const recordResponse = await fetch(`${apiUrl}/api/analyze`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          postUrl,
+          campaignId: selectedCampaign.id,
+          creatorAddress: user.addr
+        })
+      })
+      
+      const recordData = await recordResponse.json()
+      
+      if (recordData.success) {
+        setSuccessMessage(`🎉 Content submitted! Score: ${analysisResponse.data.score} - Campaign: ${selectedCampaign.id}`)
+        setShowSuccess(true)
+        
+        // Reload campaigns to see updated score
+        await loadCampaigns()
+        
+        // Reset form after 3 seconds
+        setTimeout(() => {
+          setPostUrl('')
+          setSelectedCampaign(null)
+          setShowSuccess(false)
+        }, 3000)
+      } else {
+        throw new Error(recordData.error || 'Failed to record score on-chain')
+      }
+    } catch (error: any) {
+      console.error('Failed to analyze post:', error)
+      
+      // If profile doesn't exist, try to set it up
+      if (error.message?.includes('profile not found')) {
+        if (confirm('Your profile is not set up. Would you like to set it up now?')) {
+          await setupProfile()
+        }
+      } else {
+        alert('Failed to submit content. Please try again.')
+      }
+    } finally {
+      setIsAnalyzing(false)
+    }
+  }
+
+  const claimPayout = async (campaignId: string) => {
+    if (!user?.addr) {
+      alert('Please connect your wallet')
+      return
+    }
+    
+    setIsClaiming(true)
+    setClaimingCampaignId(campaignId)
+    
+    try {
+      const apiUrl = (window as any).__API_URL__ || 'https://brightmatter-oracle.fly.dev'
+      const response = await fetch(`${apiUrl}/api/campaigns/${campaignId}/payout`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      })
+      
+      const data = await response.json()
+      
+      if (data.success) {
+        setSuccessMessage(`💰 Payout claimed successfully! TX: ${data.txId}`)
+        setShowSuccess(true)
+        
+        // Reload campaigns to see updated status
+        await loadCampaigns()
+        await loadProfile()
+        
+        setTimeout(() => {
+          setShowSuccess(false)
+        }, 5000)
+      } else {
+        throw new Error(data.error || 'Failed to claim payout')
+      }
+    } catch (error: any) {
+      console.error('Failed to claim payout:', error)
+      alert(`Failed to claim payout: ${error.message}`)
+    } finally {
+      setIsClaiming(false)
+      setClaimingCampaignId(null)
+    }
+  }
+
+  if (!isConnected) {
+    return (
+      <div className="text-center py-16">
+        <h2 className="text-2xl font-bold text-gray-900 mb-4">Connect Your Wallet</h2>
+        <p className="text-gray-600 mb-8">Please connect your Flow wallet to access the creator dashboard.</p>
+      </div>
+    )
   }
 
   return (
     <div className="space-y-8">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold text-white">Creator Dashboard</h1>
-        <p className="text-gray-400 mt-2">
-          Join open campaigns, submit your content, and earn FLOW based on performance
+        <h1 className="text-3xl font-bold text-gray-900">Creator Dashboard</h1>
+        <p className="text-gray-600 mt-2">
+          Manage your campaigns and submit content for analysis
         </p>
       </div>
 
-      {/* Message Display */}
-      {message.text && (
-        <div className={`card ${message.type === 'success' ? 'bg-green-900/20 border-green-500' : 'bg-red-900/20 border-red-500'}`}>
-          <p className={`${message.type === 'success' ? 'text-green-400' : 'text-red-400'}`}>
-            {message.text}
-          </p>
+      {/* Success Modal */}
+      {showSuccess && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-8 max-w-md text-center">
+            <div className="text-6xl mb-4">🎉</div>
+            <h3 className="text-2xl font-bold text-gray-900 mb-4">Success!</h3>
+            <p className="text-gray-600 mb-6">{successMessage}</p>
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-flow-blue mx-auto"></div>
+          </div>
         </div>
       )}
 
-      {/* Available Campaigns */}
-      {!selectedCampaign && (
-        <div className="card">
-          <h2 className="text-xl font-semibold text-white mb-4">Open Campaigns</h2>
-          {campaigns.length > 0 ? (
-            <div className="space-y-4">
-              {campaigns.map((campaign) => (
-                <div key={campaign.id} className="p-4 border border-gray-700 rounded-lg bg-gray-800/50">
-                  <div className="flex justify-between items-start">
-                    <div className="flex-1">
-                      <h3 className="font-semibold text-white text-lg">Campaign {campaign.id}</h3>
-                      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-2 text-sm">
-                        <div>
-                          <span className="text-gray-400">Budget:</span>
-                          <div className="font-medium text-white">{campaign.budgetFlow} FLOW</div>
-                        </div>
-                        <div>
-                          <span className="text-gray-400">Deadline:</span>
-                          <div className="font-medium text-white">
-                            {new Date(campaign.deadline).toLocaleDateString()}
-                          </div>
-                        </div>
-                        <div>
-                          <span className="text-gray-400">Status:</span>
-                          <div className="font-medium text-white">
-                            <span className={`px-2 py-1 rounded-full text-xs ${
-                              campaign.status === 'pending' ? 'bg-yellow-900/50 text-yellow-400' :
-                              campaign.status === 'paid' ? 'bg-green-900/50 text-green-400' :
-                              'bg-gray-700 text-gray-400'
-                            }`}>
-                              {campaign.status}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
+      {/* Loading Overlay */}
+      {(isAnalyzing || isSettingUp || isClaiming) && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-8 max-w-md text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-flow-blue mx-auto mb-4"></div>
+            <p className="text-gray-600">
+              {isSettingUp ? 'Setting up profile...' : isClaiming ? 'Processing payout...' : 'Analyzing & Recording...'}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Profile Status */}
+      <div className="card">
+        <h2 className="text-xl font-semibold text-gray-900 mb-4">Your Profile</h2>
+        {profile ? (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="text-center">
+              <div className="text-3xl font-bold text-flow-blue">{profile.veriScore || 0}</div>
+              <div className="text-sm text-gray-600">Current Score</div>
+            </div>
+            <div className="text-center">
+              <div className="text-3xl font-bold text-veri-green">{profile.totalCampaigns || 0}</div>
+              <div className="text-sm text-gray-600">Total Campaigns</div>
+            </div>
+            <div className="text-center">
+              <div className="text-lg font-bold text-veri-orange">
+                {user?.addr ? `${user.addr.slice(0, 6)}...${user.addr.slice(-4)}` : 'N/A'}
+              </div>
+              <div className="text-sm text-gray-600">Wallet Address</div>
+            </div>
+          </div>
+        ) : (
+          <div className="text-center py-8">
+            <p className="text-gray-600 mb-4">Profile not set up. Click below to initialize.</p>
+            <button 
+              onClick={setupProfile}
+              disabled={isSettingUp}
+              className="btn-primary"
+            >
+              {isSettingUp ? 'Setting up...' : 'Setup Profile'}
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Campaign Selection */}
+      <div className="card">
+        <h2 className="text-xl font-semibold text-gray-900 mb-4">Select Campaign</h2>
+        {campaigns && campaigns.length > 0 ? (
+          <div className="space-y-4">
+            {campaigns.map((campaign) => (
+              <div 
+                key={campaign.id}
+                className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                  selectedCampaign?.id === campaign.id 
+                    ? 'border-flow-blue bg-flow-blue bg-opacity-5' 
+                    : 'border-gray-200 hover:border-flow-blue hover:border-opacity-50'
+                }`}
+                onClick={() => setSelectedCampaign(campaign)}
+              >
+                <div className="flex justify-between items-start">
+                  <div>
+                    <h3 className="font-semibold text-gray-900">Campaign {campaign.id}</h3>
+                    <div className="mt-2 space-y-1 text-sm text-gray-600">
+                      <p>💰 Payout: <span className="font-medium text-flow-blue">{parseFloat(campaign.payout).toFixed(1)} FLOW</span></p>
+                      <p>🎯 Threshold: <span className="font-medium">{parseFloat(campaign.threshold).toFixed(1)} points</span></p>
+                      <p>📊 Current Score: <span className="font-medium">{parseFloat(campaign.totalScore).toFixed(1)}</span></p>
+                      <p>📅 Deadline: <span className="font-medium">{new Date(parseFloat(campaign.deadline) * 1000).toLocaleString()}</span></p>
                     </div>
-                    <button
-                      onClick={() => handleSelectCampaign(campaign.id)}
-                      className="btn-primary ml-4"
-                    >
-                      View Details
-                    </button>
+                  </div>
+                  <div className={`px-3 py-1 rounded-full text-sm ${
+                    parseFloat(campaign.totalScore) >= parseFloat(campaign.threshold)
+                      ? 'bg-green-100 text-green-800'
+                      : 'bg-yellow-100 text-yellow-800'
+                  }`}>
+                    {parseFloat(campaign.totalScore) >= parseFloat(campaign.threshold) ? 'Eligible' : 'Active'}
                   </div>
                 </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-8">
-              <p className="text-gray-400">No open campaigns available.</p>
-            </div>
-          )}
-        </div>
-      )}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-gray-600 text-center py-8">No campaigns found.</p>
+        )}
+      </div>
 
-      {/* Campaign Details & Leaderboard */}
+      {/* Content Submission */}
       {selectedCampaign && (
-        <>
-          <div className="card">
-            <div className="flex justify-between items-start">
-              <div>
-                <h2 className="text-xl font-semibold text-white">Campaign {selectedCampaign.id}</h2>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4 text-sm">
-                  <div>
-                    <span className="text-gray-400">Total Budget:</span>
-                    <div className="font-medium text-white text-lg">{selectedCampaign.budgetFlow} FLOW</div>
-                  </div>
-                  <div>
-                    <span className="text-gray-400">Deadline:</span>
-                    <div className="font-medium text-white">
-                      {new Date(selectedCampaign.deadline).toLocaleDateString()}
-                    </div>
-                  </div>
-                  <div>
-                    <span className="text-gray-400">Status:</span>
-                    <div className="font-medium text-white">
-                      <span className={`px-2 py-1 rounded-full text-xs ${
-                        selectedCampaign.status === 'pending' ? 'bg-yellow-900/50 text-yellow-400' :
-                        selectedCampaign.status === 'paid' ? 'bg-green-900/50 text-green-400' :
-                        'bg-gray-700 text-gray-400'
-                      }`}>
-                        {selectedCampaign.status}
-                      </span>
-                    </div>
-                  </div>
-                  <div>
-                    <span className="text-gray-400">Participants:</span>
-                    <div className="font-medium text-white">{leaderboard.length}</div>
-                  </div>
-                </div>
-              </div>
-              <button
-                onClick={() => {
-                  setSelectedCampaign(null)
-                  setShowSubmitForm(false)
-                }}
-                className="btn-secondary"
-              >
-                Back to List
-              </button>
+        <div className="card">
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">Submit Content</h2>
+          <div className="space-y-4">
+            <div>
+              <label className="label">Social Media Post URL</label>
+              <input
+                type="url"
+                value={postUrl}
+                onChange={(e) => setPostUrl(e.target.value)}
+                placeholder="https://youtube.com/watch?v=..."
+                className="input"
+                disabled={isAnalyzing}
+              />
             </div>
+            <button
+              onClick={analyzePost}
+              disabled={!postUrl.trim() || isAnalyzing}
+              className="btn-primary w-full"
+            >
+              {isAnalyzing ? 'Processing...' : 'Submit Content'}
+            </button>
           </div>
-
-          {/* Join / Submit Actions */}
-          <div className="card">
-            <div className="flex gap-4">
-              <button
-                onClick={() => setShowJoinForm(true)}
-                className="btn-primary"
-              >
-                Join Campaign
-              </button>
-              <button
-                onClick={() => setShowSubmitForm(true)}
-                className="btn-primary"
-                disabled={selectedCampaign.status === 'paid'}
-              >
-                Submit Post
-              </button>
-            </div>
-          </div>
-
-          {/* Join Campaign Modal */}
-          {showJoinForm && (
-            <div className="card bg-gray-800">
-              <h3 className="text-lg font-semibold text-white mb-4">Join Campaign</h3>
-              <p className="text-gray-400 mb-4">
-                Joining this campaign will allow you to submit posts and compete for a share of the prize pool.
-              </p>
-              <div className="flex gap-4">
-                <button
-                  onClick={() => handleJoinCampaign(selectedCampaign.id)}
-                  disabled={isJoining}
-                  className="btn-primary"
-                >
-                  {isJoining ? 'Joining...' : 'Confirm Join'}
-                </button>
-                <button
-                  onClick={() => setShowJoinForm(false)}
-                  className="btn-secondary"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Submit Post Form */}
-          {showSubmitForm && (
-            <div className="card bg-gray-800">
-              <h3 className="text-lg font-semibold text-white mb-4">Submit Post</h3>
-              <div className="space-y-4">
-                <div>
-                  <label className="label">Post URL</label>
-                  <input
-                    type="url"
-                    value={postUrl}
-                    onChange={(e) => setPostUrl(e.target.value)}
-                    placeholder="https://twitter.com/username/status/..."
-                    className="input"
-                  />
-                  <p className="text-sm text-gray-400 mt-1">
-                    Enter a link to your social media post
-                  </p>
-                </div>
-                <div className="flex gap-4">
-                  <button
-                    onClick={handleSubmitPost}
-                    disabled={isSubmitting || !postUrl}
-                    className="btn-primary"
-                  >
-                    {isSubmitting ? 'Submitting...' : 'Submit Post'}
-                  </button>
-                  <button
-                    onClick={() => {
-                      setShowSubmitForm(false)
-                      setPostUrl('')
-                    }}
-                    className="btn-secondary"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Leaderboard */}
-          <div className="card">
-            <h3 className="text-xl font-semibold text-white mb-4">Leaderboard</h3>
-            {leaderboard.length > 0 ? (
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-gray-700">
-                      <th className="text-left py-3 px-4 text-gray-400">Rank</th>
-                      <th className="text-left py-3 px-4 text-gray-400">Creator</th>
-                      <th className="text-right py-3 px-4 text-gray-400">Resonance Score</th>
-                      <th className="text-right py-3 px-4 text-gray-400">Submissions</th>
-                      <th className="text-right py-3 px-4 text-gray-400">Share %</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {leaderboard.map((entry, index) => (
-                      <tr key={entry.creatorAddr} className="border-b border-gray-800 hover:bg-gray-800/30">
-                        <td className="py-3 px-4 text-white font-medium">
-                          #{index + 1}
-                        </td>
-                        <td className="py-3 px-4 text-white">
-                          {entry.creatorAddr.slice(0, 8)}...{entry.creatorAddr.slice(-6)}
-                        </td>
-                        <td className="py-3 px-4 text-right text-white">
-                          {entry.totalScore.toFixed(2)}
-                        </td>
-                        <td className="py-3 px-4 text-right text-gray-400">
-                          {entry.submissionCount}
-                        </td>
-                        <td className="py-3 px-4 text-right text-green-400 font-medium">
-                          {entry.percent}%
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <div className="text-center py-8">
-                <p className="text-gray-400">No submissions yet.</p>
-              </div>
-            )}
-          </div>
-        </>
+        </div>
       )}
+
+      {/* Your Campaigns */}
+      <div className="card">
+        <h2 className="text-xl font-semibold text-gray-900 mb-4">Your Campaigns</h2>
+        {campaigns && campaigns.length > 0 ? (
+          <div className="space-y-4">
+            {campaigns.map((campaign) => {
+              const isEligible = parseFloat(campaign.totalScore) >= parseFloat(campaign.threshold)
+              const isPaidOut = campaign.paidOut === true
+              const isClaimingThis = isClaiming && claimingCampaignId === campaign.id
+              
+              return (
+                <div key={campaign.id} className="p-4 border border-gray-200 rounded-lg">
+                  <div className="flex justify-between items-start mb-4">
+                    <div>
+                      <h3 className="font-semibold text-gray-900">Campaign {campaign.id}</h3>
+                      <p className="text-sm text-gray-600 mt-1">
+                        Threshold: {parseFloat(campaign.threshold).toFixed(1)} | 
+                        Payout: {parseFloat(campaign.payout).toFixed(1)} FLOW |
+                        Score: {parseFloat(campaign.totalScore).toFixed(1)}
+                      </p>
+                    </div>
+                    <div className={`px-3 py-1 rounded-full text-sm ${
+                      isPaidOut
+                        ? 'bg-gray-100 text-gray-800'
+                        : isEligible
+                        ? 'bg-green-100 text-green-800'
+                        : 'bg-yellow-100 text-yellow-800'
+                    }`}>
+                      {isPaidOut ? 'Paid Out' : isEligible ? 'Eligible' : 'Active'}
+                    </div>
+                  </div>
+                  
+                  {isEligible && !isPaidOut && (
+                    <button
+                      onClick={() => claimPayout(campaign.id)}
+                      disabled={isClaimingThis}
+                      className="btn-primary w-full"
+                    >
+                      {isClaimingThis ? (
+                        <span className="flex items-center justify-center">
+                          <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          Claiming...
+                        </span>
+                      ) : (
+                        `💰 Claim ${parseFloat(campaign.payout).toFixed(1)} FLOW`
+                      )}
+                    </button>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        ) : (
+          <p className="text-gray-600 text-center py-8">No campaigns found.</p>
+        )}
+      </div>
     </div>
   )
 }
