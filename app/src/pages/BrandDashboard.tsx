@@ -471,8 +471,11 @@ transaction(
                     <h3 className="font-semibold text-gray-900">Campaign {campaign.id}</h3>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-2 text-sm">
                       <div>
-                        <span className="text-gray-600">Creator:</span>
-                        <div className="font-medium">{campaign.creator.slice(0, 8)}...</div>
+                        <span className="text-gray-600">Type:</span>
+                        <div className="font-medium">
+                          {campaign.type === 'open' ? 'Open Campaign' : 
+                           campaign.creator ? `${campaign.creator.slice(0, 8)}...` : 'Unknown'}
+                        </div>
                       </div>
                       <div>
                         <span className="text-gray-600">Threshold:</span>
@@ -480,12 +483,16 @@ transaction(
                       </div>
                       <div>
                         <span className="text-gray-600">Payout:</span>
-                        <div className="font-medium">{campaign.payout} USDF</div>
+                        <div className="font-medium">{campaign.payout || campaign.budgetFlow || '0'} FLOW</div>
                       </div>
                       <div>
                         <span className="text-gray-600">Deadline:</span>
                         <div className="font-medium">
-                          {new Date(campaign.deadline * 1000).toLocaleDateString()}
+                          {campaign.deadline ? 
+                            (typeof campaign.deadline === 'number' ? 
+                              new Date(campaign.deadline * 1000).toLocaleDateString() :
+                              new Date(campaign.deadline).toLocaleDateString()) : 
+                            'Unknown'}
                         </div>
                       </div>
                     </div>
