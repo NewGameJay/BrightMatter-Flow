@@ -2,11 +2,11 @@ FROM node:18-alpine
 
 WORKDIR /app
 
-COPY package*.json ./
+COPY verifier/package*.json ./
 
 RUN npm ci
 
-COPY . .
+COPY verifier/ .
 
 RUN npm run build
 

@@ -21,14 +21,7 @@ const app = express();
 const port = process.env.PORT || 8080;
 
 // Middleware
-app.use(cors({
-  origin: [
-    /^https:\/\/brightmatter-frontend\.fly\.dev$/,
-    'http://localhost:3000',
-    'http://localhost:5173'
-  ],
-  credentials: true
-}));
+app.use(cors());
 app.use(express.json());
 
 // Health check
@@ -269,17 +262,6 @@ app.post('/api/campaigns/:id/submit', async (req: Request, res: Response) => {
     res.json({ success: true, campaignId, resonanceScore: resonanceScore.toFixed(1) });
   } catch (error: any) {
     console.error('❌ [SUBMIT] Error:', error);
-    res.status(500).json({ error: error.message || String(error) });
-  }
-});
-
-// Get all campaigns
-app.get('/api/campaigns', async (req: Request, res: Response) => {
-  try {
-    const campaigns = db.getAllCampaigns();
-    res.json({ success: true, campaigns });
-  } catch (error: any) {
-    console.error('❌ [LIST_CAMPAIGNS] Error:', error);
     res.status(500).json({ error: error.message || String(error) });
   }
 });
