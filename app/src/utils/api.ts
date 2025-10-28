@@ -136,6 +136,12 @@ export const apiClient = {
     return response.data
   },
 
+  // Get campaigns for brand (campaigns they created)
+  async getBrandCampaigns(address: string): Promise<CampaignsResponse> {
+    const response = await api.get<CampaignsResponse>(`/api/campaigns/by-brand/${address}`)
+    return response.data
+  },
+
   // Get campaign by ID
   async getCampaign(campaignId: string): Promise<CampaignResponse> {
     const response = await api.get<CampaignResponse>(`/api/campaign/${campaignId}`)

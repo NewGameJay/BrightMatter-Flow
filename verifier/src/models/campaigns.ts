@@ -15,6 +15,10 @@ export interface Campaign {
   windowStart: string; // ISO string
   createdAt: string; // ISO string
   updatedAt: string; // ISO string
+  // Additional fields for compatibility
+  payout?: number;
+  threshold?: number;
+  paidOut?: boolean;
 }
 
 export interface CampaignCriteria {

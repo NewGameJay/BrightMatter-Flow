@@ -9,6 +9,7 @@ import React, { useState, useEffect } from 'react'
 import { useFCL } from '../config/fcl.tsx'
 import { apiClient } from '../utils/api'
 import * as fcl from '@onflow/fcl'
+import Modal from '../components/Modal'
 
 const BrandDashboard: React.FC = () => {
   const { user, isConnected } = useFCL()
@@ -28,17 +29,49 @@ const BrandDashboard: React.FC = () => {
     deadline: ''
   })
 
+  const [totalEscrow, setTotalEscrow] = useState(0)
+  const [modal, setModal] = useState<{
+    isOpen: boolean
+    title: string
+    message: string
+    type: 'success' | 'error' | 'info'
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    type: 'info'
+  })
+
   useEffect(() => {
     if (isConnected && user?.addr) {
       loadCampaigns()
     }
   }, [isConnected, user])
 
+  useEffect(() => {
+    // Calculate total escrow from active campaigns
+    const total = campaigns.reduce((sum, campaign) => {
+      if (!campaign.paidOut && campaign.payout) {
+        return sum + parseFloat(campaign.payout.toString())
+      }
+      return sum
+    }, 0)
+    setTotalEscrow(total)
+  }, [campaigns])
+
+  const showModal = (title: string, message: string, type: 'success' | 'error' | 'info' = 'info') => {
+    setModal({ isOpen: true, title, message, type })
+  }
+
+  const closeModal = () => {
+    setModal({ isOpen: false, title: '', message: '', type: 'info' })
+  }
+
   const loadCampaigns = async () => {
     if (!user?.addr) return
     
     try {
-      const response = await apiClient.getCampaigns(user.addr)
+      const response = await apiClient.getBrandCampaigns(user.addr)
       if (response && response.success && response.data) {
         setCampaigns(response.data)
       } else {
@@ -105,7 +138,7 @@ transaction(
       if (campaignType === 'closed') {
         creatorAddr = creatorAddresses.find(addr => addr.trim() !== '') || formData.creatorAddress
         if (!creatorAddr || !creatorAddr.trim()) {
-          alert('Please provide at least one creator address for closed campaigns')
+          showModal('Error', 'Please provide at least one creator address for closed campaigns', 'error')
           setIsCreating(false)
           return
         }
@@ -161,7 +194,11 @@ transaction(
         })
       }
 
-      alert(`Campaign created successfully!\nTransaction ID: ${txId}\nView: https://flowscan.org/transaction/${txId}`)
+      showModal(
+        'Campaign Created!', 
+        `Campaign created successfully!\nTransaction ID: ${txId}\nView: https://flowscan.org/transaction/${txId}`,
+        'success'
+      )
       
       setShowCreateForm(false)
       setFormData({
@@ -191,7 +228,7 @@ transaction(
         }
       }
       
-      alert(errorMessage)
+      showModal('Campaign Creation Failed', errorMessage, 'error')
     } finally {
       setIsCreating(false)
     }
@@ -479,10 +516,20 @@ transaction(
       <div className="card">
         <h2 className="text-xl font-semibold text-gray-900 mb-4">Escrow Vault</h2>
         <div className="text-center py-4">
-          <div className="text-2xl font-bold text-flow-blue">0 USDF</div>
-          <div className="text-sm text-gray-600">Total in escrow</div>
+          <div className="text-2xl font-bold text-veri-green">{totalEscrow.toFixed(1)} FLOW</div>
+          <div className="text-sm text-gray-600">Total in escrow across {campaigns.filter(c => !c.paidOut).length} active campaigns</div>
         </div>
       </div>
+      
+      {/* Modal */}
+      <Modal
+        isOpen={modal.isOpen}
+        onClose={closeModal}
+        title={modal.title}
+        type={modal.type}
+      >
+        <div className="whitespace-pre-line">{modal.message}</div>
+      </Modal>
     </div>
   )
 }
