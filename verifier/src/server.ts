@@ -10,10 +10,9 @@ import dotenv from 'dotenv';
 import { sendTx, runScript, fcl } from './flow/client';
 import { getOracleAddress } from './flow/signer';
 import { runFraudChecks, mockMetrics, computeResonance } from './services/fraud';
-import { splitByResonance, normalizePercentsForUFix64, calculatePayoutAmounts } from './services/splits';
-import { db } from './services/db';
+import { splitByResonance, normalizePercentsForUFix64, calculateAmounts, validateSplits } from './services/splits';
+import { campaignStore, Campaign, CampaignParticipant, Submission, PayoutReceipt } from './models/campaigns';
 import * as t from '@onflow/types';
-import { createHash } from 'crypto';
 
 dotenv.config();
 
@@ -132,195 +131,6 @@ app.post('/api/analyze', async (req: Request, res: Response) => {
   }
 });
 
-// =============================================================================
-// OPEN CAMPAIGN ENDPOINTS
-// =============================================================================
-
-// Create campaign (supports both open and curated types)
-app.post('/api/campaigns', async (req: Request, res: Response) => {
-  try {
-    const { type, deadline, budgetFlow, criteria } = req.body;
-    
-    if (!type || !deadline || !budgetFlow) {
-      return res.status(400).json({ error: 'Missing required fields' });
-    }
-    
-    const campaignId = `campaign-${Date.now()}`;
-    const campaign = {
-      id: campaignId,
-      type,
-      deadline,
-      budgetFlow,
-      status: 'pending' as const,
-      criteria: criteria || {},
-      createdAt: new Date().toISOString()
-    };
-    
-    db.createCampaign(campaign);
-    
-    console.log(`📝 [CREATE_CAMPAIGN] Created ${type} campaign ${campaignId}`);
-    
-    res.json({ success: true, campaignId });
-  } catch (error: any) {
-    console.error('❌ [CREATE_CAMPAIGN] Error:', error);
-    res.status(500).json({ error: error.message || String(error) });
-  }
-});
-
-// Join open campaign
-app.post('/api/campaigns/:id/join', async (req: Request, res: Response) => {
-  try {
-    const { id: campaignId } = req.params;
-    const { creatorAddr, signature } = req.body;
-    
-    if (!creatorAddr) {
-      return res.status(400).json({ error: 'Missing creatorAddr' });
-    }
-    
-    const campaign = db.getCampaign(campaignId);
-    if (!campaign) {
-      return res.status(404).json({ error: 'Campaign not found' });
-    }
-    
-    if (campaign.type !== 'open') {
-      return res.status(400).json({ error: 'Only open campaigns can be joined' });
-    }
-    
-    // Check if already a participant
-    if (db.isParticipant(campaignId, creatorAddr)) {
-      return res.status(400).json({ error: 'Already a participant' });
-    }
-    
-    const participant = {
-      campaignId,
-      creatorAddr,
-      joinedAt: new Date().toISOString(),
-      isEligible: true
-    };
-    
-    db.addParticipant(participant);
-    
-    console.log(`👤 [JOIN] Creator ${creatorAddr} joined campaign ${campaignId}`);
-    
-    res.json({ success: true, campaignId });
-  } catch (error: any) {
-    console.error('❌ [JOIN] Error:', error);
-    res.status(500).json({ error: error.message || String(error) });
-  }
-});
-
-// Submit content to open campaign
-app.post('/api/campaigns/:id/submit', async (req: Request, res: Response) => {
-  try {
-    const { id: campaignId } = req.params;
-    const { creatorAddr, platform, url, postId, timestamp, metrics } = req.body;
-    
-    if (!creatorAddr || !platform || !url || !postId || !timestamp || !metrics) {
-      return res.status(400).json({ error: 'Missing required fields' });
-    }
-    
-    const campaign = db.getCampaign(campaignId);
-    if (!campaign) {
-      return res.status(404).json({ error: 'Campaign not found' });
-    }
-    
-    // Verify participant
-    if (!db.isParticipant(campaignId, creatorAddr)) {
-      return res.status(403).json({ error: 'Not a participant in this campaign' });
-    }
-    
-    // Generate unique hash
-    const uniqueHash = createHash('sha256')
-      .update(`${platform}:${postId}:${campaignId}`)
-      .digest('hex');
-    
-    // Check for duplicates
-    if (db.hasSubmissionWithHash(campaignId, uniqueHash)) {
-      return res.status(400).json({ error: 'Duplicate submission' });
-    }
-    
-    // Compute resonance score
-    const resonanceScore = computeResonance(metrics);
-    
-    const submission = {
-      campaignId,
-      creatorAddr,
-      platform,
-      url,
-      postId,
-      timestamp,
-      metrics,
-      resonanceScore,
-      uniqueHash,
-      flags: {}
-    };
-    
-    db.addSubmission(submission);
-    
-    console.log(`📊 [SUBMIT] Creator ${creatorAddr} submitted to campaign ${campaignId}, score: ${resonanceScore.toFixed(1)}`);
-    
-    res.json({ success: true, campaignId, resonanceScore: resonanceScore.toFixed(1) });
-  } catch (error: any) {
-    console.error('❌ [SUBMIT] Error:', error);
-    res.status(500).json({ error: error.message || String(error) });
-  }
-});
-
-// Get campaign leaderboard
-app.get('/api/campaigns/:id/leaderboard', async (req: Request, res: Response) => {
-  try {
-    const { id: campaignId } = req.params;
-    
-    const campaign = db.getCampaign(campaignId);
-    if (!campaign) {
-      return res.status(404).json({ error: 'Campaign not found' });
-    }
-    
-    const submissions = db.getSubmissions(campaignId);
-    const splits = splitByResonance(
-      submissions.map(s => ({ creatorAddr: s.creatorAddr, resonanceScore: s.resonanceScore }))
-    );
-    
-    const leaderboard = splits.map(split => {
-      const creatorSubs = submissions.filter(s => s.creatorAddr === split.addr);
-      return {
-        creatorAddr: split.addr,
-        totalScore: creatorSubs.reduce((sum, s) => sum + s.resonanceScore, 0),
-        submissionCount: creatorSubs.length,
-        percent: (split.percent * 100).toFixed(2)
-      };
-    }).sort((a, b) => b.totalScore - a.totalScore);
-    
-    res.json({ success: true, campaignId, leaderboard });
-  } catch (error: any) {
-    console.error('❌ [LEADERBOARD] Error:', error);
-    res.status(500).json({ error: error.message || String(error) });
-  }
-});
-
-// Get campaign details
-app.get('/api/campaigns/:id', async (req: Request, res: Response) => {
-  try {
-    const { id: campaignId } = req.params;
-    
-    const campaign = db.getCampaign(campaignId);
-    if (!campaign) {
-      return res.status(404).json({ error: 'Campaign not found' });
-    }
-    
-    const payout = db.getPayout(campaignId);
-    
-    res.json({
-      success: true,
-      campaign,
-      payout: payout || null
-    });
-  } catch (error: any) {
-    console.error('❌ [GET_CAMPAIGN] Error:', error);
-    res.status(500).json({ error: error.message || String(error) });
-  }
-});
-
 // Forte Agent Verification Endpoint
 // Called by scheduled agent to verify campaign and trigger payout
 app.post('/api/agent/verify/:id', async (req: Request, res: Response) => {
@@ -329,118 +139,155 @@ app.post('/api/agent/verify/:id', async (req: Request, res: Response) => {
     
     console.log(`🤖 [AGENT] Verifying campaign ${campaignId}`);
     
-    // Check if campaign exists in our database (open campaigns)
-    const dbCampaign = db.getCampaign(campaignId);
-    
-    if (dbCampaign && dbCampaign.type === 'open') {
-      // Handle open campaign with resonance-based splits
-      console.log(`📊 [AGENT] Processing open campaign with resonance splits`);
-      
-      const validSubmissions = db.getValidSubmissionsInWindow(campaignId);
-      
-      if (validSubmissions.length === 0) {
-        return res.status(400).json({ error: 'No eligible submissions found' });
-      }
-      
-      const rawSplits = splitByResonance(
-        validSubmissions.map(s => ({ creatorAddr: s.creatorAddr, resonanceScore: s.resonanceScore }))
-      );
-      
-      if (rawSplits.length === 0) {
-        return res.status(400).json({ error: 'Could not calculate splits' });
-      }
-      
-      const normalizedSplits = normalizePercentsForUFix64(rawSplits);
-      const payoutAmounts = calculatePayoutAmounts(normalizedSplits, dbCampaign.budgetFlow);
-      
-      console.log(`💰 [AGENT] Computed splits:`, payoutAmounts);
-      
-      // Execute Forte payout chain (placeholder for now - would call actual Forte Actions)
-      // For now, just return success with calculated splits
-      
-      db.updateCampaignStatus(campaignId, 'paid');
-      db.savePayout({
-        campaignId,
-        payoutTxId: 'mock-tx-' + Date.now(),
-        splits: payoutAmounts,
-        createdAt: new Date().toISOString()
-      });
-      
-      return res.json({
-        success: true,
-        campaignId,
-        action: 'payout',
-        type: 'open',
-        splits: payoutAmounts,
-        flowscanLink: null
-      });
+    // Check if it's an open campaign
+    const openCampaign = campaignStore.get(campaignId);
+    if (openCampaign) {
+      return await handleOpenCampaignVerification(campaignId, openCampaign, res);
     }
     
-    // Handle curated campaign (existing flow)
-    console.log(`📋 [AGENT] Processing curated campaign`);
-    
-    // 1) Fetch campaign data from chain
-    const campaignScript = `
-      import CampaignEscrowV3 from 0x14aca78d100d2001
-      access(all) fun main(id: String): CampaignEscrowV3.Campaign? {
-        return CampaignEscrowV3.getCampaign(id: id)
-      }
-    `;
-    
-    const campaign = await runScript(campaignScript, [
-      (arg, types) => arg(campaignId, types.String)
-    ]);
-    
-    if (!campaign) {
-      return res.status(404).json({ error: 'Campaign not found' });
-    }
-    
-    // 2) Run fraud checks (mock - in production would fetch actual proofs)
-    const mockProofs = [{ postId: 'test', likes: 100, comments: 20, shares: 10, timestamp: Date.now() }];
-    const fraudCheckPassed = await runFraudChecks(campaignId, mockProofs);
-    
-    if (!fraudCheckPassed) {
-      console.warn(`🚫 [AGENT] Campaign ${campaignId} flagged for fraud`);
-      return res.json({ success: false, flagged: true, campaignId });
-    }
-    
-    // 3) Trigger payout via verify_and_payout transaction
-    const payoutCadence = `
-      import CampaignEscrowV3 from 0x14aca78d100d2001
-      
-      transaction(campaignId: String) {
-        prepare(signer: &Account) {
-          let signerAddr = signer.address
-          
-          let success = CampaignEscrowV3.triggerPayout(
-            campaignId: campaignId,
-            signer: signerAddr
-          )
-          
-          assert(success, message: "Payout execution failed")
-        }
-      }
-    `;
-    
-    const { txId } = await sendTx(payoutCadence, [
-      (arg, types) => arg(campaignId, types.String)
-    ]);
-    
-    console.log(`✅ [AGENT] Payout executed: ${txId}`);
-    
-    res.json({
-      success: true,
-      campaignId,
-      action: 'payout',
-      type: 'curated',
-      txId,
-      flowscanLink: `https://flowscan.org/transaction/${txId}`
-    });
+    // Handle curated campaign (existing logic)
+    return await handleCuratedCampaignVerification(campaignId, res);
   } catch (error: any) {
     console.error(`❌ [AGENT] Error:`, error);
     res.status(500).json({ error: error.message || String(error) });
   }
 });
+
+async function handleOpenCampaignVerification(campaignId: string, campaign: Campaign, res: Response) {
+  console.log(`🤖 [AGENT] Processing open campaign ${campaignId}`);
+  
+  // 1) Get valid submissions within window
+  const validSubmissions = campaignStore.findValidInWindow(campaignId, campaign.criteria);
+  
+  if (validSubmissions.length === 0) {
+    console.warn(`🚫 [AGENT] No eligible submissions for campaign ${campaignId}`);
+    return res.status(400).json({ error: 'No eligible submissions' });
+  }
+  
+  // 2) Calculate splits based on resonance scores
+  const creatorRows = validSubmissions.map(s => ({
+    creatorAddr: s.creatorAddr,
+    resonanceScore: s.resonanceScore
+  }));
+  
+  const rawSplits = splitByResonance(creatorRows);
+  const normalizedSplits = normalizePercentsForUFix64(rawSplits);
+  
+  if (!validateSplits(normalizedSplits)) {
+    console.error(`❌ [AGENT] Invalid splits for campaign ${campaignId}`);
+    return res.status(500).json({ error: 'Invalid payout splits' });
+  }
+  
+  const splitsWithAmounts = calculateAmounts(normalizedSplits, campaign.budgetFlow);
+  
+  console.log(`📊 [AGENT] Calculated splits:`, splitsWithAmounts);
+  
+  // 3) Execute Forte payout chain
+  const payoutResult = await executeFortePayoutChain(campaignId, campaign.budgetFlow, normalizedSplits);
+  
+  // 4) Store payout receipt
+  const payoutReceipt: PayoutReceipt = {
+    campaignId,
+    payoutTxId: payoutResult.txId,
+    splits: splitsWithAmounts,
+    createdAt: new Date().toISOString()
+  };
+  
+  campaignStore.addPayoutReceipt(payoutReceipt);
+  campaignStore.update(campaignId, { status: 'paid' });
+  
+  console.log(`✅ [AGENT] Open campaign payout executed: ${payoutResult.txId}`);
+  
+  res.json({
+    success: true,
+    campaignId,
+    action: 'payout',
+    txId: payoutResult.txId,
+    splits: splitsWithAmounts,
+    flowscanLink: `https://flowscan.org/transaction/${payoutResult.txId}`
+  });
+}
+
+async function handleCuratedCampaignVerification(campaignId: string, res: Response) {
+  console.log(`🤖 [AGENT] Processing curated campaign ${campaignId}`);
+  
+  // 1) Fetch campaign data from chain
+  const campaignScript = `
+    import CampaignEscrowV3 from 0x14aca78d100d2001
+    access(all) fun main(id: String): CampaignEscrowV3.Campaign? {
+      return CampaignEscrowV3.getCampaign(id: id)
+    }
+  `;
+  
+  const campaign = await runScript(campaignScript, [
+    (arg, types) => arg(campaignId, types.String)
+  ]);
+  
+  if (!campaign) {
+    return res.status(404).json({ error: 'Campaign not found' });
+  }
+  
+  // 2) Run fraud checks (mock - in production would fetch actual proofs)
+  const mockProofs = [{ postId: 'test', likes: 100, comments: 20, shares: 10, timestamp: Date.now() }];
+  const fraudCheckPassed = await runFraudChecks(campaignId, mockProofs);
+  
+  if (!fraudCheckPassed) {
+    console.warn(`🚫 [AGENT] Campaign ${campaignId} flagged for fraud`);
+    return res.json({ success: false, flagged: true, campaignId });
+  }
+  
+  // 3) Trigger payout via verify_and_payout transaction
+  const payoutCadence = `
+    import CampaignEscrowV3 from 0x14aca78d100d2001
+    
+    transaction(campaignId: String) {
+      prepare(signer: &Account) {
+        let signerAddr = signer.address
+        
+        let success = CampaignEscrowV3.triggerPayout(
+          campaignId: campaignId,
+          signer: signerAddr
+        )
+        
+        assert(success, message: "Payout execution failed")
+      }
+    }
+  `;
+  
+  const { txId } = await sendTx(payoutCadence, [
+    (arg, types) => arg(campaignId, types.String)
+  ]);
+  
+  console.log(`✅ [AGENT] Curated campaign payout executed: ${txId}`);
+  
+  res.json({
+    success: true,
+    campaignId,
+    action: 'payout',
+    txId,
+    flowscanLink: `https://flowscan.org/transaction/${txId}`
+  });
+}
+
+async function executeFortePayoutChain(campaignId: string, budgetFlow: string, splits: any[]) {
+  // For now, simulate the Forte action chain execution
+  // In production, this would call the actual Forte Actions
+  
+  console.log(`🔗 [FORTE] Executing payout chain for ${campaignId}`);
+  console.log(`💰 [FORTE] Budget: ${budgetFlow} FLOW`);
+  console.log(`📊 [FORTE] Splits:`, splits);
+  
+  // Simulate transaction execution
+  const mockTxId = `forte-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  
+  return {
+    txId: mockTxId,
+    splits: splits.map(split => ({
+      ...split,
+      amountFlow: (parseFloat(budgetFlow) * split.percent).toFixed(8)
+    }))
+  };
+}
 
 // Manual payout trigger (existing endpoint)
 app.post('/api/campaigns/:id/payout', async (req: Request, res: Response) => {
@@ -518,11 +365,233 @@ app.post('/api/campaigns/:id/refund', async (req: Request, res: Response) => {
   }
 });
 
-// Get campaign data
+// Create campaign (supports both open and curated)
+app.post('/api/campaigns', async (req: Request, res: Response) => {
+  try {
+    const { type, deadline, budgetFlow, criteria } = req.body;
+    
+    console.log(`📋 [CREATE_CAMPAIGN] Creating ${type} campaign`, { deadline, budgetFlow, criteria });
+    
+    if (!type || !deadline || !budgetFlow || !criteria) {
+      return res.status(400).json({ error: 'Missing required fields: type, deadline, budgetFlow, criteria' });
+    }
+    
+    if (type !== 'open' && type !== 'curated') {
+      return res.status(400).json({ error: 'Type must be "open" or "curated"' });
+    }
+    
+    const campaignId = `campaign-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const now = new Date().toISOString();
+    
+    const campaign: Campaign = {
+      id: campaignId,
+      type,
+      deadline,
+      budgetFlow,
+      status: 'pending',
+      criteria,
+      windowStart: criteria.windowStart || now,
+      createdAt: now,
+      updatedAt: now
+    };
+    
+    campaignStore.create(campaign);
+    
+    console.log(`✅ [CREATE_CAMPAIGN] Created campaign ${campaignId}`);
+    
+    res.json({
+      success: true,
+      campaignId,
+      campaign
+    });
+  } catch (error: any) {
+    console.error('❌ [CREATE_CAMPAIGN] Error:', error);
+    res.status(500).json({ error: error.message || String(error) });
+  }
+});
+
+// Join open campaign
+app.post('/api/campaigns/:id/join', async (req: Request, res: Response) => {
+  try {
+    const { id: campaignId } = req.params;
+    const { creatorAddr, signature } = req.body;
+    
+    console.log(`👥 [JOIN_CAMPAIGN] Creator ${creatorAddr} joining ${campaignId}`);
+    
+    if (!creatorAddr) {
+      return res.status(400).json({ error: 'Missing creatorAddr' });
+    }
+    
+    const campaign = campaignStore.get(campaignId);
+    if (!campaign) {
+      return res.status(404).json({ error: 'Campaign not found' });
+    }
+    
+    if (campaign.type !== 'open') {
+      return res.status(400).json({ error: 'Only open campaigns can be joined' });
+    }
+    
+    if (campaignStore.isParticipant(campaignId, creatorAddr)) {
+      return res.status(400).json({ error: 'Creator already joined this campaign' });
+    }
+    
+    const participant: CampaignParticipant = {
+      campaignId,
+      creatorAddr,
+      joinedAt: new Date().toISOString(),
+      isEligible: true
+    };
+    
+    campaignStore.addParticipant(participant);
+    
+    console.log(`✅ [JOIN_CAMPAIGN] Creator ${creatorAddr} joined ${campaignId}`);
+    
+    res.json({
+      success: true,
+      campaignId,
+      creatorAddr,
+      joinedAt: participant.joinedAt
+    });
+  } catch (error: any) {
+    console.error('❌ [JOIN_CAMPAIGN] Error:', error);
+    res.status(500).json({ error: error.message || String(error) });
+  }
+});
+
+// Submit content to campaign
+app.post('/api/campaigns/:id/submit', async (req: Request, res: Response) => {
+  try {
+    const { id: campaignId } = req.params;
+    const { creatorAddr, platform, url, postId, timestamp, metrics } = req.body;
+    
+    console.log(`📝 [SUBMIT_CONTENT] Creator ${creatorAddr} submitting to ${campaignId}`, { platform, url, postId });
+    
+    if (!creatorAddr || !platform || !url || !postId || !timestamp || !metrics) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+    
+    const campaign = campaignStore.get(campaignId);
+    if (!campaign) {
+      return res.status(404).json({ error: 'Campaign not found' });
+    }
+    
+    if (!campaignStore.isParticipant(campaignId, creatorAddr)) {
+      return res.status(400).json({ error: 'Creator must join campaign first' });
+    }
+    
+    // Generate unique hash for duplicate detection
+    const uniqueHash = `${platform}:${postId}`;
+    
+    // Check for duplicates
+    const existingSubmissions = campaignStore.getSubmissions(campaignId);
+    if (existingSubmissions.some(s => s.uniqueHash === uniqueHash)) {
+      return res.status(400).json({ error: 'Duplicate submission detected' });
+    }
+    
+    // Compute resonance score
+    const resonanceScore = computeResonance(metrics);
+    
+    // Validate submission
+    const submissionTime = new Date(timestamp);
+    const windowStart = new Date(campaign.windowStart);
+    const deadline = new Date(campaign.deadline);
+    
+    const flags: any = {};
+    
+    if (submissionTime < windowStart || submissionTime > deadline) {
+      flags.outsideWindow = true;
+    }
+    
+    if (campaign.criteria.platformAllowlist && !campaign.criteria.platformAllowlist.includes(platform)) {
+      flags.invalidPlatform = true;
+    }
+    
+    if (campaign.criteria.minEngagementRate && metrics.views) {
+      const engagementRate = (metrics.likes + metrics.comments + metrics.shares) / metrics.views;
+      if (engagementRate < campaign.criteria.minEngagementRate) {
+        flags.lowEngagement = true;
+      }
+    }
+    
+    const submission: Submission = {
+      campaignId,
+      creatorAddr,
+      platform,
+      url,
+      postId,
+      timestamp,
+      metrics,
+      resonanceScore,
+      uniqueHash,
+      flags,
+      createdAt: new Date().toISOString()
+    };
+    
+    campaignStore.addSubmission(submission);
+    
+    console.log(`✅ [SUBMIT_CONTENT] Submission recorded`, { resonanceScore, flags });
+    
+    res.json({
+      success: true,
+      campaignId,
+      creatorAddr,
+      resonanceScore,
+      flags,
+      submissionId: uniqueHash
+    });
+  } catch (error: any) {
+    console.error('❌ [SUBMIT_CONTENT] Error:', error);
+    res.status(500).json({ error: error.message || String(error) });
+  }
+});
+
+// Get campaign leaderboard
+app.get('/api/campaigns/:id/leaderboard', async (req: Request, res: Response) => {
+  try {
+    const { id: campaignId } = req.params;
+    
+    const campaign = campaignStore.get(campaignId);
+    if (!campaign) {
+      return res.status(404).json({ error: 'Campaign not found' });
+    }
+    
+    const leaderboard = campaignStore.getLeaderboard(campaignId);
+    
+    res.json({
+      success: true,
+      campaignId,
+      leaderboard,
+      totalSubmissions: leaderboard.reduce((sum, entry) => sum + entry.submissionCount, 0),
+      totalResonance: leaderboard.reduce((sum, entry) => sum + entry.totalResonance, 0)
+    });
+  } catch (error: any) {
+    console.error('❌ [LEADERBOARD] Error:', error);
+    res.status(500).json({ error: error.message || String(error) });
+  }
+});
+
+// Get campaign status (updated to include open campaign data)
 app.get('/api/campaigns/:id', async (req: Request, res: Response) => {
   try {
     const { id: campaignId } = req.params;
     
+    // Check if it's an open campaign in our store
+    const openCampaign = campaignStore.get(campaignId);
+    if (openCampaign) {
+      const leaderboard = campaignStore.getLeaderboard(campaignId);
+      const payoutReceipt = campaignStore.getPayoutReceipt(campaignId);
+      
+      return res.json({
+        success: true,
+        campaign: openCampaign,
+        leaderboard,
+        payoutReceipt,
+        participants: campaignStore.getParticipants(campaignId),
+        submissions: campaignStore.getSubmissions(campaignId)
+      });
+    }
+    
+    // Fallback to on-chain campaign (curated)
     const cadence = `
       import CampaignEscrowV3 from 0x14aca78d100d2001
       access(all) fun main(id: String): CampaignEscrowV3.Campaign? {

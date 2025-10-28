@@ -4,27 +4,51 @@
 
 @layer base {
   * {
-    @apply border-border;
+    @apply border-veri-border;
   }
+  
   body {
-    @apply bg-background text-foreground;
+    @apply bg-veri-dark text-white font-sans;
   }
 }
 
 @layer components {
   .btn-primary {
-    @apply bg-veri-green hover:bg-veri-green/90 text-white font-medium py-2 px-4 rounded-lg transition-colors;
+    @apply bg-veri-green hover:bg-veri-green/90 text-white font-medium py-2 px-4 rounded-lg transition-all shadow-lg hover:shadow-xl;
   }
   
   .btn-secondary {
-    @apply bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium py-2 px-4 rounded-lg transition-colors;
+    @apply bg-veri-gray hover:bg-veri-light-gray text-white font-medium py-2 px-4 rounded-lg transition-all;
   }
   
   .card {
-    @apply bg-white dark:bg-gray-800 rounded-lg shadow-md p-6;
+    @apply bg-veri-gray rounded-xl shadow-lg border border-veri-border p-6 backdrop-blur-sm;
   }
   
   .input {
-    @apply w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-veri-green focus:border-transparent;
+    @apply w-full px-3 py-2 bg-veri-dark border border-veri-border rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-flow-blue focus:border-transparent;
   }
+  
+  .label {
+    @apply block text-sm font-medium text-gray-300 mb-1;
+  }
+}
+
+/* Custom scrollbar for dark theme */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0A0A0A;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #333333;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #444444;
 }

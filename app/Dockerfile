@@ -1,13 +1,12 @@
-# Frontend Dockerfile
+# Build stage
 FROM node:20-alpine AS builder
-
 WORKDIR /app
 
 # Copy package files
-COPY package*.json ./
+COPY package.json package-lock.json* ./
 
 # Install dependencies
-RUN npm ci
+RUN if [ -f package-lock.json ]; then npm ci; else npm i; fi
 
 # Copy source files
 COPY . .
@@ -15,11 +14,12 @@ COPY . .
 # Build the app
 RUN npm run build
 
-# Production stage
+# Serve stage
 FROM nginx:alpine
+WORKDIR /usr/share/nginx/html
 
 # Copy built files
-COPY --from=builder /app/dist /usr/share/nginx/html
+COPY --from=builder /app/dist ./
 
 # Copy nginx configuration
 COPY nginx.conf /etc/nginx/conf.d/default.conf

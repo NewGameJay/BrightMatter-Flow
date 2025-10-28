@@ -1,100 +1,96 @@
 /**
  * Splits Service
  * 
- * Handles resonance-based payout calculations for open campaigns
+ * Calculates creator payout percentages based on resonance scores
  */
 
-export type SplitRow = { creatorAddr: string; resonanceScore: number };
+export interface CreatorRow {
+  creatorAddr: string;
+  resonanceScore: number;
+}
 
 export interface CreatorSplit {
   addr: string;
   percent: number;
 }
 
-export interface PayoutSplit extends CreatorSplit {
+export interface CreatorSplitWithAmount extends CreatorSplit {
   amountFlow: string;
+  creatorAddr: string; // Add this field
 }
 
-export function splitByResonance(rows: SplitRow[]): CreatorSplit[] {
-  // Group by creator and sum resonance scores
+/**
+ * Calculate payout splits based on resonance scores
+ */
+export function splitByResonance(rows: CreatorRow[]): CreatorSplit[] {
   const totals = new Map<string, number>();
+  
+  // Sum scores by creator
   for (const row of rows) {
     const current = totals.get(row.creatorAddr) || 0;
     totals.set(row.creatorAddr, current + row.resonanceScore);
   }
   
-  // Calculate grand total
   const grandTotal = Array.from(totals.values()).reduce((a, b) => a + b, 0);
   
   if (grandTotal <= 0) {
     return [];
   }
   
-  // Calculate percentages
-  const splits: CreatorSplit[] = [];
-  for (const [addr, score] of totals.entries()) {
-    splits.push({
-      addr,
-      percent: score / grandTotal
-    });
-  }
-  
-  return splits;
+  return Array.from(totals.entries()).map(([addr, score]) => ({
+    addr,
+    percent: score / grandTotal
+  }));
 }
 
 /**
- * Normalize percentages to ensure they sum to exactly 1.0 for UFix64 safety
- * Uses 8 decimal places and adjusts remainder to largest share
+ * Normalize percentages for UFix64 (8 decimal places)
+ * Ensures sum equals exactly 1.00000000
  */
 export function normalizePercentsForUFix64(splits: CreatorSplit[]): CreatorSplit[] {
   if (splits.length === 0) return [];
   
-  const PRECISION = 8;
-  const factor = Math.pow(10, PRECISION);
-  
-  // Calculate raw percentages and round
-  const rounded = splits.map(s => ({
-    ...s,
-    rawPercent: Math.round(s.percent * factor) / factor
+  // Round to 8 decimal places
+  const rounded = splits.map(split => ({
+    ...split,
+    percent: Math.round(split.percent * 100000000) / 100000000
   }));
   
-  // Calculate sum of rounded values
-  const sum = rounded.reduce((acc, s) => acc + s.rawPercent, 0);
+  // Calculate current sum
+  const currentSum = rounded.reduce((sum, split) => sum + split.percent, 0);
+  const targetSum = 1.00000000;
+  const difference = targetSum - currentSum;
   
-  // Find the difference from 1.0
-  const diff = 1.0 - sum;
-  
-  if (Math.abs(diff) < 0.00000001) {
-    // Already normalized, return rounded
-    return rounded.map(s => ({ addr: s.addr, percent: s.rawPercent }));
+  // Adjust the largest share to reach exact sum
+  if (Math.abs(difference) > 0.00000001) {
+    const largestIndex = rounded.reduce((maxIdx, split, idx) => 
+      split.percent > rounded[maxIdx].percent ? idx : maxIdx, 0
+    );
+    
+    rounded[largestIndex].percent += difference;
+    rounded[largestIndex].percent = Math.round(rounded[largestIndex].percent * 100000000) / 100000000;
   }
   
-  // Adjust the largest share to make sum exactly 1.0
-  const sorted = [...rounded].sort((a, b) => b.rawPercent - a.rawPercent);
-  sorted[0].rawPercent += diff;
-  
-  // Rebuild in original order
-  const result: CreatorSplit[] = [];
-  for (const original of rounded) {
-    const adjusted = sorted.find(s => s.addr === original.addr);
-    result.push({
-      addr: original.addr,
-      percent: adjusted?.rawPercent || original.rawPercent
-    });
-  }
-  
-  return result;
+  return rounded;
 }
 
 /**
- * Calculate payout amounts from percentages and budget
+ * Calculate actual FLOW amounts from percentages and budget
  */
-export function calculatePayoutAmounts(splits: CreatorSplit[], budgetFlow: string): PayoutSplit[] {
+export function calculateAmounts(splits: CreatorSplit[], budgetFlow: string): CreatorSplitWithAmount[] {
   const budget = parseFloat(budgetFlow);
   
   return splits.map(split => ({
-    addr: split.addr,
-    percent: split.percent,
+    ...split,
+    creatorAddr: split.addr, // Map addr to creatorAddr
     amountFlow: (budget * split.percent).toFixed(8)
   }));
+}
+
+/**
+ * Validate that splits sum to 1.0 within tolerance
+ */
+export function validateSplits(splits: CreatorSplit[], tolerance: number = 0.00000001): boolean {
+  const sum = splits.reduce((total, split) => total + split.percent, 0);
+  return Math.abs(sum - 1.0) <= tolerance;
 }
