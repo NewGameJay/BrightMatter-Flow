@@ -1,15 +1,8 @@
 /**
  * DepositToCreators Action
- *
- * Forte Action to deposit FLOW to multiple creator wallets.
- * This action expects a vault containing the campaign's escrowed FLOW
- * and an explicit list of payouts with concrete amounts.
- *
- * Safety:
- * - Pre-validates all recipient receiver capabilities exist.
- * - Asserts the sum of amounts does not exceed the vault balance (with tiny epsilon).
- * - Reverts on any capability or deposit error to maintain atomicity.
- * - Asserts no remainder is left undistributed.
+ * 
+ * Forte Action to atomically deposit FLOW to creator wallets
+ * Uses Payout struct array for type safety
  */
 
 import FungibleToken from 0xf233dcee88fe0abe
@@ -18,7 +11,7 @@ import FlowToken from 0x1654653399040a61
 access(all) struct Payout {
     access(all) let address: Address
     access(all) let amount: UFix64
-
+    
     init(address: Address, amount: UFix64) {
         self.address = address
         self.amount = amount
@@ -27,65 +20,61 @@ access(all) struct Payout {
 
 access(all) struct DepositToCreators {
     access(all) let payouts: [Payout]
-
+    
     init(payouts: [Payout]) {
         self.payouts = payouts
     }
-
+    
     access(all) fun execute(vault: @FlowToken.Vault) {
-        // Tiny epsilon for UFix64 rounding tolerance
-        let epsilon: UFix64 = 0.00000001
-
-        // 1) Pre-validate all recipients expose a Receiver capability
-        for payout in self.payouts {
-            let cap = getAccount(payout.address)
-                .capabilities
-                .get<&{FungibleToken.Receiver}>(/public/flowTokenReceiver)
-
-            // Use a borrow attempt to validate the capability exists
-            if cap.borrow() == nil {
-                panic("Missing FungibleToken.Receiver capability for recipient ".concat(payout.address.toString()))
-            }
-        }
-
-        // 2) Check totals vs vault balance
+        // Pre-validate all receivers exist and calculate total
         var totalRequested: UFix64 = 0.0
+        
         for payout in self.payouts {
-            if payout.amount < 0.0 {
-                panic("Negative payout requested for ".concat(payout.address.toString()))
+            // Validate receiver capability exists
+            let receiverCap = getAccount(payout.address)
+                .capabilities.get<&{FungibleToken.Receiver}>(/public/flowTokenReceiver)
+            
+            if receiverCap == nil {
+                destroy vault
+                panic("Missing receiver capability for address ".concat(payout.address.toString()))
             }
+            
+            // Validate receiver is valid
+            if !receiverCap!.check() {
+                destroy vault
+                panic("Invalid receiver capability for address ".concat(payout.address.toString()))
+            }
+            
             totalRequested = totalRequested + payout.amount
         }
-
+        
+        // Validate vault has sufficient balance (with epsilon)
+        let epsilon: UFix64 = 0.00000001
         if totalRequested > vault.balance + epsilon {
-            panic(
-                "Requested payouts exceed available vault balance. Requested: "
-                .concat(totalRequested.toString())
-                .concat(", Available: ")
-                .concat(vault.balance.toString())
-            )
+            destroy vault
+            panic("Insufficient vault balance: requested ".concat(totalRequested.toString()).concat(" but have ").concat(vault.balance.toString()))
         }
-
-        // 3) Execute deposits atomically
+        
+        // Execute all payouts
         for payout in self.payouts {
             if payout.amount > 0.0 {
                 let payment <- vault.withdraw(amount: payout.amount) as! @FlowToken.Vault
-
-                let receiver = getAccount(payout.address)
-                    .capabilities
-                    .get<&{FungibleToken.Receiver}>(/public/flowTokenReceiver)
-                    .borrow()!
+                
+                let receiverCap = getAccount(payout.address)
+                    .capabilities.get<&{FungibleToken.Receiver}>(/public/flowTokenReceiver)!
+                
+                let receiver = receiverCap.borrow()!
                 receiver.deposit(from: <-payment)
-
-                log("Deposited ".concat(payout.amount.toString()).concat(" FLOW to ").concat(payout.address.toString()))
             }
         }
-
-        // 4) Ensure no undistributed remainder
+        
+        // Ensure vault is empty (within epsilon)
         if vault.balance > epsilon {
-            panic("Undistributed remainder detected: ".concat(vault.balance.toString()))
+            destroy vault
+            panic("Vault not empty after payout: remainder ".concat(vault.balance.toString()))
         }
-
+        
+        // Destroy empty vault
         destroy vault
     }
 }
