@@ -201,6 +201,26 @@ class CampaignStore {
       submissions: data.submissions
     })).sort((a, b) => b.totalResonance - a.totalResonance);
   }
+
+  // List all campaigns
+  getAllCampaigns(): Campaign[] {
+    return Array.from(this.campaigns.values());
+  }
+
+  // Get campaigns by participant
+  getCampaignsByParticipant(creatorAddr: string): Campaign[] {
+    const participatingCampaignIds = new Set<string>();
+    
+    for (const [campaignId, participants] of this.participants.entries()) {
+      if (participants.some(p => p.creatorAddr === creatorAddr)) {
+        participatingCampaignIds.add(campaignId);
+      }
+    }
+    
+    return Array.from(participatingCampaignIds)
+      .map(id => this.campaigns.get(id))
+      .filter((c): c is Campaign => c !== undefined);
+  }
 }
 
 // Export singleton instance

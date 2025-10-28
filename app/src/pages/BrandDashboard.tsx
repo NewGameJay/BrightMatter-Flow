@@ -17,6 +17,8 @@ const BrandDashboard: React.FC = () => {
   const [showCreateForm, setShowCreateForm] = useState(false)
 
   // Campaign form state
+  const [campaignType, setCampaignType] = useState<'closed' | 'open'>('closed')
+  const [creatorAddresses, setCreatorAddresses] = useState(['', '', '']) // Start with 3
   const [formData, setFormData] = useState({
     campaignId: '',
     creatorAddress: '',
@@ -201,18 +203,101 @@ transaction(
                 required
               />
             </div>
+            
+            {/* Campaign Type Toggle */}
             <div>
-              <label className="label">Creator Address</label>
-              <input
-                type="text"
-                name="creatorAddress"
-                value={formData.creatorAddress}
-                onChange={handleInputChange}
-                placeholder="0x1234567890abcdef"
-                className="input"
-                required
-              />
+              <label className="label">Campaign Type</label>
+              <div className="flex gap-4">
+                <button
+                  type="button"
+                  onClick={() => setCampaignType('closed')}
+                  className={`flex-1 px-4 py-2 rounded-lg font-medium transition ${
+                    campaignType === 'closed' 
+                      ? 'bg-veri-green text-white' 
+                      : 'bg-veri-gray text-gray-300 hover:bg-veri-border'
+                  }`}
+                >
+                  Closed (Invite Only)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCampaignType('open')}
+                  className={`flex-1 px-4 py-2 rounded-lg font-medium transition ${
+                    campaignType === 'open' 
+                      ? 'bg-veri-green text-white' 
+                      : 'bg-veri-gray text-gray-300 hover:bg-veri-border'
+                  }`}
+                >
+                  Open (Anyone Can Join)
+                </button>
+              </div>
+              <p className="text-xs text-gray-500 mt-2">
+                {campaignType === 'closed' 
+                  ? 'Select specific creators to invite' 
+                  : 'Any creator can join and submit content'}
+              </p>
             </div>
+            
+            {/* Creator Addresses (only for closed campaigns) */}
+            {campaignType === 'closed' && (
+              <div>
+                <label className="label">Creator Wallets (up to 25)</label>
+                <div className="space-y-2">
+                  {creatorAddresses.map((addr, idx) => (
+                    <div key={idx} className="flex gap-2">
+                      <input
+                        type="text"
+                        value={addr}
+                        onChange={(e) => {
+                          const newAddrs = [...creatorAddresses];
+                          newAddrs[idx] = e.target.value;
+                          setCreatorAddresses(newAddrs);
+                        }}
+                        placeholder={`0x... (Creator ${idx + 1})`}
+                        className="input flex-1"
+                      />
+                      {creatorAddresses.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newAddrs = creatorAddresses.filter((_, i) => i !== idx);
+                            setCreatorAddresses(newAddrs);
+                          }}
+                          className="px-3 py-2 bg-red-500/20 text-red-400 rounded hover:bg-red-500/30"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                  {creatorAddresses.length < 25 && (
+                    <button
+                      type="button"
+                      onClick={() => setCreatorAddresses([...creatorAddresses, ''])}
+                      className="text-veri-green hover:underline text-sm"
+                    >
+                      + Add Creator (max 25)
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+            
+            {/* For closed campaigns, keep the single creator field for backward compatibility */}
+            {campaignType === 'closed' && creatorAddresses.length === 0 && (
+              <div>
+                <label className="label">Creator Address</label>
+                <input
+                  type="text"
+                  name="creatorAddress"
+                  value={formData.creatorAddress}
+                  onChange={handleInputChange}
+                  placeholder="0x1234567890abcdef"
+                  className="input"
+                  required
+                />
+              </div>
+            )}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="label">VeriScore Threshold</label>

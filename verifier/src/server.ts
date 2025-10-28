@@ -610,11 +610,42 @@ app.get('/api/campaigns/:id', async (req: Request, res: Response) => {
   }
 });
 
+// List all campaigns (with optional type filter)
+app.get('/api/campaigns', async (req: Request, res: Response) => {
+  try {
+    const { type } = req.query;
+    
+    console.log(`📋 [LIST_CAMPAIGNS] Listing campaigns, type filter: ${type || 'all'}`);
+    
+    // Get all campaigns from store
+    const allCampaigns = campaignStore.getAllCampaigns();
+    
+    // Filter by type if specified
+    const filteredCampaigns = allCampaigns.filter(campaign => 
+      !type || campaign.type === type
+    );
+    
+    res.json({
+      success: true,
+      campaigns: filteredCampaigns
+    });
+  } catch (error: any) {
+    console.error('❌ [LIST_CAMPAIGNS] Error:', error);
+    res.status(500).json({ error: error.message || String(error) });
+  }
+});
+
 // Get campaigns by creator
 app.get('/api/campaigns/by-creator/:address', async (req: Request, res: Response) => {
   try {
     const { address } = req.params;
     
+    console.log(`📋 [GET_CAMPAIGNS_BY_CREATOR] For address: ${address}`);
+    
+    // Get open campaigns where this creator is a participant
+    const openCampaigns = campaignStore.getCampaignsByParticipant(address);
+    
+    // Then fallback to on-chain curated campaigns
     const cadence = `
       import CampaignEscrowV3 from 0x14aca78d100d2001
       access(all) fun main(creator: Address): [CampaignEscrowV3.Campaign] {
@@ -622,11 +653,14 @@ app.get('/api/campaigns/by-creator/:address', async (req: Request, res: Response
       }
     `;
     
-    const campaigns = await runScript(cadence, [
+    const chainCampaigns = await runScript(cadence, [
       (arg, types) => arg(fcl.withPrefix(address), types.Address)
     ]);
     
-    res.json({ success: true, data: campaigns || [] });
+    res.json({ 
+      success: true, 
+      data: [...openCampaigns, ...(chainCampaigns || [])]
+    });
   } catch (error: any) {
     console.error('❌ [GET_CAMPAIGNS] Error:', error);
     res.status(500).json({ error: error.message || String(error) });
