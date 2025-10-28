@@ -11,7 +11,8 @@ import { sendTx, runScript, fcl } from './flow/client';
 import { getOracleAddress } from './flow/signer';
 import { runFraudChecks, mockMetrics, computeResonance } from './services/fraud';
 import { splitByResonance, normalizePercentsForUFix64, calculateAmounts, validateSplits } from './services/splits';
-import { campaignStore, Campaign, CampaignParticipant, Submission, PayoutReceipt } from './models/campaigns';
+// Note: In-memory campaign store is no longer used - all campaigns are on-chain
+// import { campaignStore, Campaign, CampaignParticipant, Submission, PayoutReceipt } from './models/campaigns';
 import * as t from '@onflow/types';
 
 dotenv.config();
@@ -30,7 +31,7 @@ app.get('/health', (_req: Request, res: Response) => {
     service: 'brightmatter-oracle-forte',
     network: 'mainnet',
     contracts: {
-      CampaignEscrowV3: '0x14aca78d100d2001',
+      CampaignEscrowV4: '0x14aca78d100d2001',
       CreatorProfileV2: '0x14aca78d100d2001'
     },
     oracle: getOracleAddress(),
@@ -83,7 +84,7 @@ app.post('/api/analyze', async (req: Request, res: Response) => {
     
     // Oracle signs and executes transaction to update score on-chain
     const cadence = `
-      import CampaignEscrowV3 from 0x14aca78d100d2001
+      import CampaignEscrowV4 from 0x14aca78d100d2001
       import CreatorProfileV2 from 0x14aca78d100d2001
       
       transaction(
@@ -97,7 +98,7 @@ app.post('/api/analyze', async (req: Request, res: Response) => {
           let signerAddr = signer.address
           
           // Update campaign score (oracle-signed)
-          let ok = CampaignEscrowV3.updateCreatorScore(
+          let ok = CampaignEscrowV4.updateCreatorScore(
             campaignId: campaignId,
             creator: creator,
             score: score,
@@ -152,155 +153,42 @@ app.post('/api/agent/verify/:id', async (req: Request, res: Response) => {
     
     console.log(`🤖 [AGENT] Verifying campaign ${campaignId}`);
     
-    // Check if it's an open campaign
-    const openCampaign = campaignStore.get(campaignId);
-    if (openCampaign) {
-      return await handleOpenCampaignVerification(campaignId, openCampaign, res);
-    }
+    // Trigger payout on-chain (oracle-signed)
+    const cadence = `
+      import CampaignEscrowV4 from 0x14aca78d100d2001
+      
+      transaction(campaignId: String) {
+        prepare(signer: &Account) {
+          let signerAddr = signer.address
+          let success = CampaignEscrowV4.triggerPayout(
+            campaignId: campaignId,
+            signer: signerAddr
+          )
+          assert(success, message: "Payout failed or threshold not met")
+        }
+      }
+    `;
     
-    // Handle curated campaign (existing logic)
-    return await handleCuratedCampaignVerification(campaignId, res);
+    const { txId } = await sendTx(cadence, [
+      (arg: any, t: any) => arg(campaignId, t.String)
+    ]);
+    
+    console.log(`✅ [AGENT] Campaign payout executed: ${txId}`);
+    
+    res.json({
+      success: true,
+      campaignId,
+      action: 'payout',
+      txId,
+      flowscanLink: `https://flowscan.org/transaction/${txId}`
+    });
   } catch (error: any) {
     console.error(`❌ [AGENT] Error:`, error);
     res.status(500).json({ error: error.message || String(error) });
   }
 });
 
-async function handleOpenCampaignVerification(campaignId: string, campaign: Campaign, res: Response) {
-  console.log(`🤖 [AGENT] Processing open campaign ${campaignId}`);
-  
-  // 1) Get valid submissions within window
-  const validSubmissions = campaignStore.findValidInWindow(campaignId, campaign.criteria);
-  
-  if (validSubmissions.length === 0) {
-    console.warn(`🚫 [AGENT] No eligible submissions for campaign ${campaignId}`);
-    return res.status(400).json({ error: 'No eligible submissions' });
-  }
-  
-  // 2) Calculate splits based on resonance scores
-  const creatorRows = validSubmissions.map(s => ({
-    creatorAddr: s.creatorAddr,
-    resonanceScore: s.resonanceScore
-  }));
-  
-  const rawSplits = splitByResonance(creatorRows);
-  const normalizedSplits = normalizePercentsForUFix64(rawSplits);
-  
-  if (!validateSplits(normalizedSplits)) {
-    console.error(`❌ [AGENT] Invalid splits for campaign ${campaignId}`);
-    return res.status(500).json({ error: 'Invalid payout splits' });
-  }
-  
-  const splitsWithAmounts = calculateAmounts(normalizedSplits, campaign.budgetFlow);
-  
-  console.log(`📊 [AGENT] Calculated splits:`, splitsWithAmounts);
-  
-  // 3) Execute Forte payout chain
-  const payoutResult = await executeFortePayoutChain(campaignId, campaign.budgetFlow, normalizedSplits);
-  
-  // 4) Store payout receipt
-  const payoutReceipt: PayoutReceipt = {
-    campaignId,
-    payoutTxId: payoutResult.txId,
-    splits: splitsWithAmounts,
-    createdAt: new Date().toISOString()
-  };
-  
-  campaignStore.addPayoutReceipt(payoutReceipt);
-  campaignStore.update(campaignId, { status: 'paid' });
-  
-  console.log(`✅ [AGENT] Open campaign payout executed: ${payoutResult.txId}`);
-  
-  res.json({
-    success: true,
-    campaignId,
-    action: 'payout',
-    txId: payoutResult.txId,
-    splits: splitsWithAmounts,
-    flowscanLink: `https://flowscan.org/transaction/${payoutResult.txId}`
-  });
-}
-
-async function handleCuratedCampaignVerification(campaignId: string, res: Response) {
-  console.log(`🤖 [AGENT] Processing curated campaign ${campaignId}`);
-  
-  // 1) Fetch campaign data from chain
-  const campaignScript = `
-    import CampaignEscrowV3 from 0x14aca78d100d2001
-    access(all) fun main(id: String): CampaignEscrowV3.Campaign? {
-      return CampaignEscrowV3.getCampaign(id: id)
-    }
-  `;
-  
-  const campaign = await runScript(campaignScript, [
-    (arg, types) => arg(campaignId, types.String)
-  ]);
-  
-  if (!campaign) {
-    return res.status(404).json({ error: 'Campaign not found' });
-  }
-  
-  // 2) Run fraud checks (mock - in production would fetch actual proofs)
-  const mockProofs = [{ postId: 'test', likes: 100, comments: 20, shares: 10, timestamp: Date.now() }];
-  const fraudCheckPassed = await runFraudChecks(campaignId, mockProofs);
-  
-  if (!fraudCheckPassed) {
-    console.warn(`🚫 [AGENT] Campaign ${campaignId} flagged for fraud`);
-    return res.json({ success: false, flagged: true, campaignId });
-  }
-  
-  // 3) Trigger payout via verify_and_payout transaction
-  const payoutCadence = `
-    import CampaignEscrowV3 from 0x14aca78d100d2001
-    
-    transaction(campaignId: String) {
-      prepare(signer: &Account) {
-        let signerAddr = signer.address
-        
-        let success = CampaignEscrowV3.triggerPayout(
-          campaignId: campaignId,
-          signer: signerAddr
-        )
-        
-        assert(success, message: "Payout execution failed")
-      }
-    }
-  `;
-  
-  const { txId } = await sendTx(payoutCadence, [
-    (arg, types) => arg(campaignId, types.String)
-  ]);
-  
-  console.log(`✅ [AGENT] Curated campaign payout executed: ${txId}`);
-  
-  res.json({
-    success: true,
-    campaignId,
-    action: 'payout',
-    txId,
-    flowscanLink: `https://flowscan.org/transaction/${txId}`
-  });
-}
-
-async function executeFortePayoutChain(campaignId: string, budgetFlow: string, splits: any[]) {
-  // For now, simulate the Forte action chain execution
-  // In production, this would call the actual Forte Actions
-  
-  console.log(`🔗 [FORTE] Executing payout chain for ${campaignId}`);
-  console.log(`💰 [FORTE] Budget: ${budgetFlow} FLOW`);
-  console.log(`📊 [FORTE] Splits:`, splits);
-  
-  // Simulate transaction execution
-  const mockTxId = `forte-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-  
-  return {
-    txId: mockTxId,
-    splits: splits.map(split => ({
-      ...split,
-      amountFlow: (parseFloat(budgetFlow) * split.percent).toFixed(8)
-    }))
-  };
-}
+// Old helper functions removed - all campaigns now on-chain
 
 // Manual payout trigger (existing endpoint)
 app.post('/api/campaigns/:id/payout', async (req: Request, res: Response) => {
@@ -313,7 +201,7 @@ app.post('/api/campaigns/:id/payout', async (req: Request, res: Response) => {
       
       transaction(campaignId: String) {
         prepare(signer: &Account) {
-          let success = CampaignEscrowV3.triggerPayout(
+          let success = CampaignEscrowV4.triggerPayout(
             campaignId: campaignId,
             signer: signer.address
           )
@@ -351,7 +239,7 @@ app.post('/api/campaigns/:id/refund', async (req: Request, res: Response) => {
       
       transaction(campaignId: String) {
         prepare(signer: &Account) {
-          let success = CampaignEscrowV3.triggerRefund(
+          let success = CampaignEscrowV4.triggerRefund(
             campaignId: campaignId,
             signer: signer.address
           )
@@ -379,49 +267,18 @@ app.post('/api/campaigns/:id/refund', async (req: Request, res: Response) => {
 });
 
 // Create campaign (supports both open and curated)
+// Note: Campaigns are now created directly on-chain by the Brand Dashboard
+// This endpoint is kept for backwards compatibility but just returns success
 app.post('/api/campaigns', async (req: Request, res: Response) => {
   try {
-    const { type, deadline, budgetFlow, criteria, id, title } = req.body;
+    const { id } = req.body;
     
-    console.log(`📋 [CREATE_CAMPAIGN] Creating ${type} campaign`, { id, title, deadline, budgetFlow, criteria });
-    
-    if (!type || !deadline || !budgetFlow || !criteria) {
-      return res.status(400).json({ error: 'Missing required fields: type, deadline, budgetFlow, criteria' });
-    }
-    
-    if (type !== 'open' && type !== 'curated') {
-      return res.status(400).json({ error: 'Type must be "open" or "curated"' });
-    }
-    
-    // Use provided ID or generate new one
-    const campaignId = id || `campaign-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    const now = new Date().toISOString();
-    
-    const campaign: Campaign = {
-      id: campaignId,
-      title: title || campaignId,
-      type,
-      deadline,
-      budgetFlow,
-      status: 'pending',
-      criteria,
-      windowStart: criteria.windowStart || now,
-      createdAt: now,
-      updatedAt: now,
-      // Map for compatibility
-      payout: parseFloat(budgetFlow),
-      threshold: criteria.minResonanceScore || 0,
-      paidOut: false
-    };
-    
-    campaignStore.create(campaign);
-    
-    console.log(`✅ [CREATE_CAMPAIGN] Created campaign ${campaignId}`);
+    console.log(`📋 [CREATE_CAMPAIGN] Campaign ${id} created on-chain by brand`);
     
     res.json({
       success: true,
-      campaignId,
-      campaign
+      campaignId: id,
+      message: 'Campaign created on-chain successfully'
     });
   } catch (error: any) {
     console.error('❌ [CREATE_CAMPAIGN] Error:', error);
@@ -436,27 +293,29 @@ app.get('/api/campaigns/by-brand/:address', async (req: Request, res: Response) 
     
     console.log(`📋 [GET_CAMPAIGNS_BY_BRAND] For address: ${address}`);
     
-    // Get all campaigns and filter by brand address
-    const allCampaigns = campaignStore.getAllCampaigns();
-    const brandCampaigns = allCampaigns.filter(campaign => {
-      // For now, we'll return all campaigns since we don't track brand address
-      // In production, you'd want to store the brand address when creating campaigns
-      return true;
-    });
-    
-    // Also get on-chain campaigns (these would be curated campaigns created by this brand)
+    // Get all on-chain campaigns
     const cadence = `
-      import CampaignEscrowV3 from 0x14aca78d100d2001
-      access(all) fun main(): [CampaignEscrowV3.Campaign] {
-        return CampaignEscrowV3.getAllCampaigns()
+      import CampaignEscrowV4 from 0x14aca78d100d2001
+      access(all) fun main(brandAddr: Address): [CampaignEscrowV4.Campaign] {
+        // Get all campaigns and filter by brand
+        let allCampaigns = CampaignEscrowV4.getAllCampaigns()
+        let brandCampaigns: [CampaignEscrowV4.Campaign] = []
+        for campaign in allCampaigns {
+          if campaign.brand == brandAddr {
+            brandCampaigns.append(campaign)
+          }
+        }
+        return brandCampaigns
       }
     `;
     
-    const chainCampaigns = await runScript(cadence, []);
+    const chainCampaigns = await runScript(cadence, [
+      (arg, types) => arg(address, types.Address)
+    ]);
     
     res.json({ 
       success: true, 
-      data: [...brandCampaigns, ...(chainCampaigns || [])]
+      data: chainCampaigns || []
     });
   } catch (error: any) {
     console.error('❌ [GET_CAMPAIGNS_BY_BRAND] Error:', error);
@@ -465,10 +324,11 @@ app.get('/api/campaigns/by-brand/:address', async (req: Request, res: Response) 
 });
 
 // Join open campaign
+// Join an open campaign (oracle-signed transaction to add creator to allowlist)
 app.post('/api/campaigns/:id/join', async (req: Request, res: Response) => {
   try {
     const { id: campaignId } = req.params;
-    const { creatorAddr, signature } = req.body;
+    const { creatorAddr } = req.body;
     
     console.log(`👥 [JOIN_CAMPAIGN] Creator ${creatorAddr} joining ${campaignId}`);
     
@@ -476,35 +336,44 @@ app.post('/api/campaigns/:id/join', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Missing creatorAddr' });
     }
     
-    const campaign = campaignStore.get(campaignId);
-    if (!campaign) {
-      return res.status(404).json({ error: 'Campaign not found' });
-    }
+    // Oracle-signed transaction to join campaign on-chain
+    const cadence = `
+      import CampaignEscrowV4 from 0x14aca78d100d2001
+      
+      transaction(
+        campaignId: String,
+        creator: Address
+      ) {
+        prepare(signer: &Account) {
+          let signerAddr = signer.address
+          
+          // Oracle adds creator to campaign allowlist
+          let success = CampaignEscrowV4.joinCampaign(
+            campaignId: campaignId,
+            creator: creator,
+            signer: signerAddr
+          )
+          assert(success, message: "Failed to join campaign")
+        }
+      }
+    `;
     
-    if (campaign.type !== 'open') {
-      return res.status(400).json({ error: 'Only open campaigns can be joined' });
-    }
+    console.log('🔗 Oracle executing joinCampaign transaction...');
     
-    if (campaignStore.isParticipant(campaignId, creatorAddr)) {
-      return res.status(400).json({ error: 'Creator already joined this campaign' });
-    }
+    // Execute oracle-signed transaction
+    const { txId } = await sendTx(cadence, [
+      (arg: any, t: any) => arg(campaignId, t.String),
+      (arg: any, t: any) => arg(creatorAddr, t.Address)
+    ]);
     
-    const participant: CampaignParticipant = {
-      campaignId,
-      creatorAddr,
-      joinedAt: new Date().toISOString(),
-      isEligible: true
-    };
-    
-    campaignStore.addParticipant(participant);
-    
-    console.log(`✅ [JOIN_CAMPAIGN] Creator ${creatorAddr} joined ${campaignId}`);
+    console.log(`✅ [JOIN_CAMPAIGN] Creator ${creatorAddr} joined ${campaignId} - txId: ${txId}`);
     
     res.json({
       success: true,
       campaignId,
       creatorAddr,
-      joinedAt: participant.joinedAt
+      txId,
+      flowscanLink: `https://flowscan.org/transaction/${txId}`
     });
   } catch (error: any) {
     console.error('❌ [JOIN_CAMPAIGN] Error:', error);
@@ -512,144 +381,20 @@ app.post('/api/campaigns/:id/join', async (req: Request, res: Response) => {
   }
 });
 
-// Submit content to campaign
-app.post('/api/campaigns/:id/submit', async (req: Request, res: Response) => {
-  try {
-    const { id: campaignId } = req.params;
-    const { creatorAddr, platform, url, postId, timestamp, metrics } = req.body;
-    
-    console.log(`📝 [SUBMIT_CONTENT] Creator ${creatorAddr} submitting to ${campaignId}`, { platform, url, postId });
-    
-    if (!creatorAddr || !platform || !url || !postId || !timestamp || !metrics) {
-      return res.status(400).json({ error: 'Missing required fields' });
-    }
-    
-    const campaign = campaignStore.get(campaignId);
-    if (!campaign) {
-      return res.status(404).json({ error: 'Campaign not found' });
-    }
-    
-    if (!campaignStore.isParticipant(campaignId, creatorAddr)) {
-      return res.status(400).json({ error: 'Creator must join campaign first' });
-    }
-    
-    // Generate unique hash for duplicate detection
-    const uniqueHash = `${platform}:${postId}`;
-    
-    // Check for duplicates
-    const existingSubmissions = campaignStore.getSubmissions(campaignId);
-    if (existingSubmissions.some(s => s.uniqueHash === uniqueHash)) {
-      return res.status(400).json({ error: 'Duplicate submission detected' });
-    }
-    
-    // Compute resonance score
-    const resonanceScore = computeResonance(metrics);
-    
-    // Validate submission
-    const submissionTime = new Date(timestamp);
-    const windowStart = new Date(campaign.windowStart);
-    const deadline = new Date(campaign.deadline);
-    
-    const flags: any = {};
-    
-    if (submissionTime < windowStart || submissionTime > deadline) {
-      flags.outsideWindow = true;
-    }
-    
-    if (campaign.criteria.platformAllowlist && !campaign.criteria.platformAllowlist.includes(platform)) {
-      flags.invalidPlatform = true;
-    }
-    
-    if (campaign.criteria.minEngagementRate && metrics.views) {
-      const engagementRate = (metrics.likes + metrics.comments + metrics.shares) / metrics.views;
-      if (engagementRate < campaign.criteria.minEngagementRate) {
-        flags.lowEngagement = true;
-      }
-    }
-    
-    const submission: Submission = {
-      campaignId,
-      creatorAddr,
-      platform,
-      url,
-      postId,
-      timestamp,
-      metrics,
-      resonanceScore,
-      uniqueHash,
-      flags,
-      createdAt: new Date().toISOString()
-    };
-    
-    campaignStore.addSubmission(submission);
-    
-    console.log(`✅ [SUBMIT_CONTENT] Submission recorded`, { resonanceScore, flags });
-    
-    res.json({
-      success: true,
-      campaignId,
-      creatorAddr,
-      resonanceScore,
-      flags,
-      submissionId: uniqueHash
-    });
-  } catch (error: any) {
-    console.error('❌ [SUBMIT_CONTENT] Error:', error);
-    res.status(500).json({ error: error.message || String(error) });
-  }
-});
-
-// Get campaign leaderboard
-app.get('/api/campaigns/:id/leaderboard', async (req: Request, res: Response) => {
-  try {
-    const { id: campaignId } = req.params;
-    
-    const campaign = campaignStore.get(campaignId);
-    if (!campaign) {
-      return res.status(404).json({ error: 'Campaign not found' });
-    }
-    
-    const leaderboard = campaignStore.getLeaderboard(campaignId);
-    
-    res.json({
-      success: true,
-      campaignId,
-      leaderboard,
-      totalSubmissions: leaderboard.reduce((sum, entry) => sum + entry.submissionCount, 0),
-      totalResonance: leaderboard.reduce((sum, entry) => sum + entry.totalResonance, 0)
-    });
-  } catch (error: any) {
-    console.error('❌ [LEADERBOARD] Error:', error);
-    res.status(500).json({ error: error.message || String(error) });
-  }
-});
+// Note: Submit and leaderboard endpoints removed - content submission now handled by /api/analyze
+// which writes directly to chain. Leaderboard data available from on-chain campaign.creatorScores
 
 // Get campaign status (updated to include open campaign data)
+// Get campaign by ID
 app.get('/api/campaigns/:id', async (req: Request, res: Response) => {
   try {
     const { id: campaignId } = req.params;
     
-    // Check if it's an open campaign in our store
-    const openCampaign = campaignStore.get(campaignId);
-    if (openCampaign) {
-      const leaderboard = campaignStore.getLeaderboard(campaignId);
-      const payoutReceipt = campaignStore.getPayoutReceipt(campaignId);
-      
-      return res.json({
-        success: true,
-        campaign: openCampaign,
-        leaderboard,
-        payoutReceipt,
-        participants: campaignStore.getParticipants(campaignId),
-        submissions: campaignStore.getSubmissions(campaignId)
-      });
-    }
-    
-    // Fallback to on-chain campaign (curated)
+    // Get campaign from chain
     const cadence = `
-      import CampaignEscrowV3 from 0x14aca78d100d2001
-      access(all) fun main(id: String): CampaignEscrowV3.Campaign? {
-        return CampaignEscrowV3.getCampaign(id: id)
+      import CampaignEscrowV4 from 0x14aca78d100d2001
+      access(all) fun main(id: String): CampaignEscrowV4.Campaign? {
+        return CampaignEscrowV4.getCampaign(id: id)
       }
     `;
     
@@ -665,23 +410,48 @@ app.get('/api/campaigns/:id', async (req: Request, res: Response) => {
 });
 
 // List all campaigns (with optional type filter)
+// List all campaigns (or filter by type: open/closed)
 app.get('/api/campaigns', async (req: Request, res: Response) => {
   try {
-    const { type } = req.query;
+    const { type, excludeCreator } = req.query;
     
     console.log(`📋 [LIST_CAMPAIGNS] Listing campaigns, type filter: ${type || 'all'}`);
     
-    // Get all campaigns from store
-    const allCampaigns = campaignStore.getAllCampaigns();
+    // Get all on-chain campaigns
+    let cadence: string;
+    let args: any[] = [];
     
-    // Filter by type if specified
-    const filteredCampaigns = allCampaigns.filter(campaign => 
-      !type || campaign.type === type
-    );
+    if (type === 'open' && excludeCreator) {
+      // Get open campaigns excluding those the creator has already joined
+      cadence = `
+        import CampaignEscrowV4 from 0x14aca78d100d2001
+        access(all) fun main(creatorAddr: Address): [CampaignEscrowV4.Campaign] {
+          return CampaignEscrowV4.getOpenCampaigns(excludeCreator: creatorAddr)
+        }
+      `;
+      args = [(arg, types) => arg(excludeCreator as string, types.Address)];
+    } else {
+      // Get all campaigns
+      cadence = `
+        import CampaignEscrowV4 from 0x14aca78d100d2001
+        access(all) fun main(): [CampaignEscrowV4.Campaign] {
+          return CampaignEscrowV4.getAllCampaigns()
+        }
+      `;
+    }
+    
+    let campaigns = await runScript(cadence, args) || [];
+    
+    // Filter by type if specified (campaignType enum: 0=closed, 1=open)
+    if (type === 'open') {
+      campaigns = campaigns.filter((c: any) => c.campaignType === 1);
+    } else if (type === 'closed') {
+      campaigns = campaigns.filter((c: any) => c.campaignType === 0);
+    }
     
     res.json({
       success: true,
-      campaigns: filteredCampaigns
+      campaigns
     });
   } catch (error: any) {
     console.error('❌ [LIST_CAMPAIGNS] Error:', error);
@@ -689,21 +459,18 @@ app.get('/api/campaigns', async (req: Request, res: Response) => {
   }
 });
 
-// Get campaigns by creator
+// Get campaigns by creator (campaigns they're in the allowlist for)
 app.get('/api/campaigns/by-creator/:address', async (req: Request, res: Response) => {
   try {
     const { address } = req.params;
     
     console.log(`📋 [GET_CAMPAIGNS_BY_CREATOR] For address: ${address}`);
     
-    // Get open campaigns where this creator is a participant
-    const openCampaigns = campaignStore.getCampaignsByParticipant(address);
-    
-    // Then fallback to on-chain curated campaigns
+    // Get all on-chain campaigns where this creator is in the allowlist
     const cadence = `
-      import CampaignEscrowV3 from 0x14aca78d100d2001
-      access(all) fun main(creator: Address): [CampaignEscrowV3.Campaign] {
-        return CampaignEscrowV3.getCampaignsByCreator(creator: creator)
+      import CampaignEscrowV4 from 0x14aca78d100d2001
+      access(all) fun main(creator: Address): [CampaignEscrowV4.Campaign] {
+        return CampaignEscrowV4.getCampaignsByCreator(creator: creator)
       }
     `;
     
@@ -713,7 +480,7 @@ app.get('/api/campaigns/by-creator/:address', async (req: Request, res: Response
     
     res.json({ 
       success: true, 
-      data: [...openCampaigns, ...(chainCampaigns || [])]
+      data: chainCampaigns || []
     });
   } catch (error: any) {
     console.error('❌ [GET_CAMPAIGNS] Error:', error);
