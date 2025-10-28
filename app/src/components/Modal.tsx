@@ -48,7 +48,7 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, type = 
             ×
           </button>
         </div>
-        <div className="text-gray-700">
+        <div className="text-gray-700 whitespace-pre-wrap break-words">
           {children}
         </div>
         <div className="mt-6 flex justify-end">

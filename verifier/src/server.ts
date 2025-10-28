@@ -708,7 +708,7 @@ app.get('/api/campaigns/by-creator/:address', async (req: Request, res: Response
     `;
     
     const chainCampaigns = await runScript(cadence, [
-      (arg, types) => arg(fcl.withPrefix(address), types.Address)
+      (arg, types) => arg(address, types.Address)
     ]);
     
     res.json({ 

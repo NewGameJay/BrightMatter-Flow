@@ -18,7 +18,9 @@ const FLOW_KEY_INDEX = Number(process.env.FLOW_KEY_INDEX || 0);
 // Configure FCL
 fcl.config()
   .put("accessNode.api", FLOW_ACCESS_NODE)
-  .put("flow.network", "mainnet");
+  .put("flow.network", "mainnet")
+  .put("fcl.accountProofResolve", null)
+  .put("fcl.accountProofResolve", null);
 
 const key = ec.keyFromPrivate(FLOW_PRIVATE_KEY, "hex");
 
