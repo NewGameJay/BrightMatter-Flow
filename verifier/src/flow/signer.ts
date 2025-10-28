@@ -12,7 +12,7 @@ const ec = new EC("p256");
 
 const FLOW_ACCESS_NODE = process.env.FLOW_ACCESS_NODE || "https://rest-mainnet.onflow.org";
 const FLOW_ACCOUNT_ADDRESS = (process.env.FLOW_ADDRESS || process.env.FLOW_ACCOUNT_ADDRESS || "14aca78d100d2001").replace(/^0x/, "");
-const FLOW_PRIVATE_KEY = process.env.FLOW_PRIVATE_KEY || "49cd6b9efbb08635220096c4cb5f626908227a957fbbad5d129b21f049fa394d";
+const FLOW_PRIVATE_KEY = process.env.FLOW_PRIVATE_KEY || "654778a449ba7d2e2eba94e90b08d810d5ef1bfab036a16f24159f23ff316a23";
 const FLOW_KEY_INDEX = Number(process.env.FLOW_KEY_INDEX || 0);
 
 console.log('🔧 Flow Config:', { 
