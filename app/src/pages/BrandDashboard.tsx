@@ -54,14 +54,60 @@ const BrandDashboard: React.FC = () => {
     setIsCreating(true)
     
     try {
-      // Build the Cadence transaction for campaign creation
-      const deadlineTimestamp = Date.now() + (parseFloat(formData.deadline) * 3600 * 1000) // hours to milliseconds
-      const deadlineSeconds = Math.floor(deadlineTimestamp / 1000)
-      
-      const cadence = `
+      if (campaignType === 'open') {
+        // For open campaigns, use the backend API
+        const deadlineISO = new Date(Date.now() + (parseFloat(formData.deadline) * 3600 * 1000)).toISOString()
+        const windowStartISO = new Date().toISOString()
+        
+        const apiUrl = (window as any).__API_URL__ || 'https://brightmatter-oracle.fly.dev'
+        const response = await fetch(`${apiUrl}/api/campaigns`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: 'open',
+            deadline: deadlineISO,
+            budgetFlow: formData.payout,
+            criteria: {
+              windowStart: windowStartISO,
+              minEngagementRate: 0.02
+            }
+          })
+        })
+        
+        const data = await response.json()
+        
+        if (data.success) {
+          alert(`Open campaign created successfully!\nCampaign ID: ${data.campaignId}`)
+          setShowCreateForm(false)
+          setFormData({
+            campaignId: '',
+            creatorAddress: '',
+            threshold: '',
+            payout: '',
+            deadline: ''
+          })
+          loadCampaigns()
+        } else {
+          throw new Error(data.error || 'Failed to create campaign')
+        }
+      } else {
+        // For closed campaigns, use the on-chain transaction
+        const deadlineTimestamp = Date.now() + (parseFloat(formData.deadline) * 3600 * 1000)
+        const deadlineSeconds = Math.floor(deadlineTimestamp / 1000)
+        
+        // Get the first non-empty creator address from the array, or fall back to formData
+        const creatorAddr = creatorAddresses.find(addr => addr.trim() !== '') || formData.creatorAddress
+        
+        if (!creatorAddr || !creatorAddr.trim()) {
+          alert('Please provide at least one creator address for closed campaigns')
+          setIsCreating(false)
+          return
+        }
+        
+        const cadence = `
 import FungibleToken from 0xf233dcee88fe0abe
 import FlowToken from 0x1654653399040a61
-import CampaignEscrowV2 from 0x14aca78d100d2001
+import CampaignEscrowV3 from 0x14aca78d100d2001
 
 transaction(
   id: String,
@@ -78,7 +124,7 @@ transaction(
     
     let payment <- vaultRef.withdraw(amount: deposit) as! @FlowToken.Vault
     
-    let ok = CampaignEscrowV2.createCampaign(
+    let ok = CampaignEscrowV3.createCampaign(
       id: id,
       creator: creator,
       threshold: threshold,
@@ -89,45 +135,45 @@ transaction(
     assert(ok, message: "createCampaign failed")
   }
 }
-      `.trim()
+        `.trim()
 
-      // Execute the transaction via FCL
-      // Helper to format UFix64 with exactly one decimal place
-      const formatUFix64 = (value: string | number): string => {
-        const num = typeof value === 'string' ? parseFloat(value) : value
-        return num.toFixed(1)
+        // Helper to format UFix64 with exactly one decimal place
+        const formatUFix64 = (value: string | number): string => {
+          const num = typeof value === 'string' ? parseFloat(value) : value
+          return num.toFixed(1)
+        }
+        
+        const txId = await fcl.mutate({
+          cadence,
+          args: (arg: any, t: any) => [
+            arg(formData.campaignId, t.String),
+            arg(fcl.withPrefix(creatorAddr), t.Address),
+            arg(formatUFix64(formData.threshold), t.UFix64),
+            arg(formatUFix64(formData.payout), t.UFix64),
+            arg(formatUFix64(deadlineSeconds), t.UFix64),
+            arg(formatUFix64(formData.payout), t.UFix64) // deposit same as payout
+          ],
+          proposer: fcl.currentUser().authorization,
+          payer: fcl.currentUser().authorization,
+          authorizations: [fcl.currentUser().authorization],
+          limit: 9999
+        })
+
+        // Wait for transaction to be sealed
+        await fcl.tx(txId).onceSealed()
+
+        alert(`Campaign created successfully!\nTransaction ID: ${txId}\nView: https://flowscan.org/transaction/${txId}`)
+        
+        setShowCreateForm(false)
+        setFormData({
+          campaignId: '',
+          creatorAddress: '',
+          threshold: '',
+          payout: '',
+          deadline: ''
+        })
+        loadCampaigns()
       }
-      
-      const txId = await fcl.mutate({
-        cadence,
-        args: (arg: any, t: any) => [
-          arg(formData.campaignId, t.String),
-          arg(formData.creatorAddress, t.Address),
-          arg(formatUFix64(formData.threshold), t.UFix64),
-          arg(formatUFix64(formData.payout), t.UFix64),
-          arg(formatUFix64(deadlineSeconds), t.UFix64),
-          arg(formatUFix64(formData.payout), t.UFix64) // deposit same as payout
-        ],
-        proposer: fcl.currentUser().authorization,
-        payer: fcl.currentUser().authorization,
-        authorizations: [fcl.currentUser().authorization],
-        limit: 9999
-      })
-
-      // Wait for transaction to be sealed
-      await fcl.tx(txId).onceSealed()
-
-      alert(`Campaign created successfully!\nTransaction ID: ${txId}\nView: https://flowscan.org/transaction/${txId}`)
-      
-      setShowCreateForm(false)
-      setFormData({
-        campaignId: '',
-        creatorAddress: '',
-        threshold: '',
-        payout: '',
-        deadline: ''
-      })
-      loadCampaigns()
     } catch (error: any) {
       console.error('Failed to create campaign:', error)
       
