@@ -56,7 +56,7 @@ export async function runFraudChecks(campaignId: string, proofs: ProofMetrics[])
 
 export function mockMetrics(url: string) {
   // Generate mock metrics for testing
-  const postId = url.split("/").pop() || `post-${Date.now()}`;
+  const postId = url && typeof url === 'string' ? url.split("/").pop() || `post-${Date.now()}` : `post-${Date.now()}`;
   return {
     postId,
     likes: Math.floor(Math.random() * 1000) + 100,

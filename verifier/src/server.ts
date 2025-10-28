@@ -44,9 +44,17 @@ app.get('/health', (_req: Request, res: Response) => {
 // Analyze post - compute score and write proof on-chain
 app.post('/api/analyze-post', async (req: Request, res: Response) => {
   try {
-    const { url } = req.body;
-    const metrics = mockMetrics(url);
+    const { postUrl } = req.body;
+    console.log(`📝 [ANALYZE_POST] Received postUrl:`, postUrl);
+    
+    if (!postUrl) {
+      return res.status(400).json({ error: 'postUrl is required' });
+    }
+    
+    const metrics = mockMetrics(postUrl);
     const score = computeResonance(metrics);
+    
+    console.log(`📊 [ANALYZE_POST] Generated score: ${score.toFixed(1)}`, { metrics });
     
     res.json({ success: true, score: score.toFixed(1), metrics });
   } catch (error: any) {
