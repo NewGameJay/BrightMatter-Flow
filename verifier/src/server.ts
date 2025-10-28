@@ -123,7 +123,7 @@ app.post('/api/analyze', async (req: Request, res: Response) => {
     // Execute oracle-signed transaction using sendTx from client.ts
     const { txId } = await sendTx(cadence, [
       (arg: any, t: any) => arg(campaignId, t.String),
-      (arg: any, t: any) => arg(fcl.withPrefix(creatorAddress), t.Address),
+      (arg: any, t: any) => arg(creatorAddress, t.Address),
       (arg: any, t: any) => arg(metrics.postId, t.String),
       (arg: any, t: any) => arg(score.toFixed(1), t.UFix64),
       (arg: any, t: any) => arg(timestamp.toFixed(1), t.UFix64)
