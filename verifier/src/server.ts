@@ -63,7 +63,7 @@ app.post('/api/analyze-post', async (req: Request, res: Response) => {
   }
 });
 
-// Submit post and record on-chain (oracle-signed)
+// Analyze post and return score (frontend will submit to chain)
 app.post('/api/analyze', async (req: Request, res: Response) => {
   try {
     const { postUrl, campaignId, creatorAddress } = req.body;
@@ -81,53 +81,13 @@ app.post('/api/analyze', async (req: Request, res: Response) => {
     
     console.log(`📊 [ANALYZE] Score: ${score.toFixed(1)}`, { metrics });
     
-    // Write proof + score on-chain (oracle-signed transaction)
-    const cadence = `
-      import CampaignEscrowV3 from 0x14aca78d100d2001
-      import CreatorProfileV2 from 0x14aca78d100d2001
-      
-      transaction(
-        campaignId: String,
-        creator: Address,
-        postId: String,
-        score: UFix64,
-        timestamp: UFix64
-      ) {
-        prepare(signer: &Account) {
-          let signerAddr = signer.address
-          
-          let ok = CampaignEscrowV3.updateCreatorScore(
-            campaignId: campaignId,
-            creator: creator,
-            score: score,
-            signer: signerAddr
-          )
-          assert(ok, message: "updateCreatorScore failed")
-          
-          CreatorProfileV2.addProofFor(
-            creator: creator,
-            postId: postId,
-            score: score,
-            timestamp: timestamp,
-            campaignId: campaignId,
-            signer: signerAddr
-          )
-        }
-      }
-    `;
-    
-    // For now, mock the transaction to avoid Flow API issues
-    // TODO: Implement proper on-chain recording when Flow API is stable
-    const mockTxId = `mock-tx-${Date.now()}`;
-    
-    console.log(`✅ [ANALYZE] Mock transaction: ${mockTxId}`);
-    
+    // Return score and metrics - frontend will submit to chain via FCL
     res.json({
       success: true,
       score: score.toFixed(1),
       metrics,
-      txId: mockTxId,
-      flowscanLink: `https://flowscan.org/transaction/${mockTxId}`
+      postId: metrics.postId,
+      timestamp: timestamp.toFixed(1)
     });
   } catch (error: any) {
     console.error('❌ [ANALYZE] Error:', error);

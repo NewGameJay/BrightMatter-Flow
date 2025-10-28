@@ -179,15 +179,9 @@ const CreatorDashboard: React.FC = () => {
     
     setIsAnalyzing(true)
     try {
-      // Step 1: Analyze post (gets mock 5.0 score)
-      const analysisResponse = await apiClient.analyzePost(postUrl)
-      if (!analysisResponse.success) {
-        throw new Error('Analysis failed')
-      }
-      
-      // Step 2: Record score on-chain via /api/analyze
+      // Step 1: Get score from backend
       const apiUrl = (window as any).__API_URL__ || 'https://brightmatter-oracle.fly.dev'
-      const recordResponse = await fetch(`${apiUrl}/api/analyze`, {
+      const analysisResponse = await fetch(`${apiUrl}/api/analyze`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -197,24 +191,86 @@ const CreatorDashboard: React.FC = () => {
         })
       })
       
-      const recordData = await recordResponse.json()
+      const analysisData = await analysisResponse.json()
       
-      if (recordData.success) {
-        setSuccessMessage(`🎉 Content submitted! Score: ${analysisResponse.data.score} - Campaign: ${selectedCampaign.id}`)
-        setShowSuccess(true)
-        
-        // Reload campaigns to see updated score
-        await loadCampaigns()
-        
-        // Reset form after 3 seconds
-        setTimeout(() => {
-          setPostUrl('')
-          setSelectedCampaign(null)
-          setShowSuccess(false)
-        }, 3000)
-      } else {
-        throw new Error(recordData.error || 'Failed to record score on-chain')
+      if (!analysisData.success) {
+        throw new Error(analysisData.error || 'Analysis failed')
       }
+      
+      const { score, postId, timestamp } = analysisData
+      
+      console.log('📊 Analysis result:', { score, postId, timestamp })
+      
+      // Step 2: Submit to chain via FCL transaction
+      const cadence = `
+        import CampaignEscrowV3 from 0x14aca78d100d2001
+        import CreatorProfileV2 from 0x14aca78d100d2001
+        
+        transaction(
+          campaignId: String,
+          postId: String,
+          score: UFix64,
+          timestamp: UFix64
+        ) {
+          prepare(signer: &Account) {
+            let signerAddr = signer.address
+            
+            // Update campaign score
+            let ok = CampaignEscrowV3.updateCreatorScore(
+              campaignId: campaignId,
+              creator: signerAddr,
+              score: score,
+              signer: signerAddr
+            )
+            assert(ok, message: "updateCreatorScore failed")
+            
+            // Add proof to creator profile
+            CreatorProfileV2.addProofFor(
+              creator: signerAddr,
+              postId: postId,
+              score: score,
+              timestamp: timestamp,
+              campaignId: campaignId,
+              signer: signerAddr
+            )
+          }
+        }
+      `
+      
+      console.log('🔗 Submitting to chain...')
+      
+      const txId = await fcl.mutate({
+        cadence,
+        args: (arg: any, t: any) => [
+          arg(selectedCampaign.id, t.String),
+          arg(postId, t.String),
+          arg(score, t.UFix64),
+          arg(timestamp, t.UFix64)
+        ],
+        proposer: fcl.currentUser().authorization,
+        payer: fcl.currentUser().authorization,
+        authorizations: [fcl.currentUser().authorization],
+        limit: 9999
+      })
+      
+      console.log('⏳ Waiting for transaction to seal...')
+      await fcl.tx(txId).onceSealed()
+      
+      console.log('✅ Transaction sealed:', txId)
+      
+      setSuccessMessage(`🎉 Content submitted successfully!\nScore: ${score}\nTransaction: ${txId}`)
+      setShowSuccess(true)
+      
+      // Reload campaigns to see updated score
+      await loadCampaigns()
+      
+      // Reset form after 3 seconds
+      setTimeout(() => {
+        setPostUrl('')
+        setSelectedCampaign(null)
+        setShowSuccess(false)
+      }, 3000)
+      
     } catch (error: any) {
       console.error('Failed to analyze post:', error)
       
