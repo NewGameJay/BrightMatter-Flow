@@ -55,7 +55,7 @@ export const authz = async (account: any = {}) => {
     tempId: `${addr}-${keyId}`,
     addr,
     keyId,
-    sequenceNum: 0,
+    // Let FCL handle sequence number automatically
     signingFunction: async ({ message }: { message: string }) => ({
       addr,
       keyId,
