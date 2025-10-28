@@ -3,13 +3,12 @@ primary_region = "iad"
 
 [build]
   dockerfile = "Dockerfile"
-  build_context = "."
 
 [env]
+  VITE_API_URL = "https://brightmatter-oracle.fly.dev"
   VITE_FLOW_NETWORK = "mainnet"
   VITE_CAMPAIGN_ESCROW_ADDRESS = "0x14aca78d100d2001"
   VITE_CREATOR_PROFILE_ADDRESS = "0x14aca78d100d2001"
-  VITE_API_URL = "https://brightmatter-oracle.fly.dev"
 
 [http_service]
   internal_port = 80
@@ -22,4 +21,3 @@ primary_region = "iad"
   cpu_kind = "shared"
   cpus = 1
   memory_mb = 256
-

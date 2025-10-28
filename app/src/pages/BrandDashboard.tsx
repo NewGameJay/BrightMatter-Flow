@@ -7,9 +7,8 @@
 
 import React, { useState, useEffect } from 'react'
 import { useFCL } from '../config/fcl.tsx'
-import { apiClient } from '../utils/api'
 import * as fcl from '@onflow/fcl'
-import { createCampaign, type CampaignType } from '../lib/api/campaigns'
+import { createCampaign, getCampaign, type CampaignType, type Campaign } from '../lib/api/campaigns'
 
 const BrandDashboard: React.FC = () => {
   const { user, isConnected } = useFCL()
@@ -39,9 +38,11 @@ const BrandDashboard: React.FC = () => {
     if (!user?.addr) return
     
     try {
-      const response = await apiClient.getCampaigns(user.addr)
-      if (response && response.success && response.data) {
-        setCampaigns(response.data)
+      // Load campaigns for this user
+      const res = await fetch(`${import.meta.env.VITE_API_URL || 'https://brightmatter-oracle.fly.dev'}/api/campaigns`)
+      const data = await res.json()
+      if (data && Array.isArray(data)) {
+        setCampaigns(data)
       } else {
         setCampaigns([])
       }
